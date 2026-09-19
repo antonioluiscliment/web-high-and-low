@@ -1,0 +1,100 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Análisis de Highs and Lows</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+
+<header class="topbar">
+  <button id="menuToggle" class="menu-toggle" aria-label="Abrir menú">
+    <span></span><span></span><span></span>
+  </button>
+  <h1 class="app-title">Análisis de Highs and Lows</h1>
+</header>
+
+<nav id="sideMenu" class="side-menu">
+  <div class="side-menu-header">
+    <span>Menú</span>
+    <button id="menuClose" class="menu-close" aria-label="Cerrar menú">&times;</button>
+  </div>
+  <ul class="menu-list">
+    <li><a href="#" class="menu-item active" data-view="highs-lows">Highs and Lows</a></li>
+  </ul>
+</nav>
+<div id="menuOverlay" class="menu-overlay"></div>
+
+<main class="content">
+
+  <section id="view-highs-lows" class="view">
+    <div class="panel filters-panel">
+      <div class="filter-row">
+        <label for="sheetSelect">Hoja</label>
+        <select id="sheetSelect"></select>
+      </div>
+
+      <div class="filter-grid">
+        <div class="filter-field">
+          <label for="minP">P mínimo <span class="filter-value" id="minPVal"></span></label>
+          <input type="range" id="minP" min="0" max="100" step="1">
+        </div>
+        <div class="filter-field">
+          <label for="minPU">PU mínimo <span class="filter-value" id="minPUVal"></span></label>
+          <input type="range" id="minPU" min="0" max="100" step="1">
+        </div>
+        <div class="filter-field">
+          <label for="minPB">PB mínimo <span class="filter-value" id="minPBVal"></span></label>
+          <input type="range" id="minPB" min="0" max="100" step="1">
+        </div>
+      </div>
+
+      <div class="filter-actions">
+        <button id="resetFilters" class="btn btn-secondary">Restablecer filtros</button>
+        <span id="resultCount" class="result-count"></span>
+      </div>
+    </div>
+
+    <div class="panel table-panel">
+      <div class="table-toolbar">
+        <button id="downloadPdf" class="btn btn-primary">Descargar PDF</button>
+        <button id="shareView" class="btn btn-primary">Compartir</button>
+      </div>
+      <div class="table-scroll">
+        <table id="resultsTable">
+          <thead>
+            <tr>
+              <th>Ticker</th><th>V</th><th>U</th><th>B</th><th>N</th><th>P</th><th>PU</th><th>PB</th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
+```
+
+Resumen de la estructura:
+
+· Head: Incluye metadatos, el título, la hoja de estilos styles.css y las librerías jsPDF y jspdf-autotable desde CDN para generar PDFs.
+· Header: Barra superior con un botón de menú hamburguesa y el título de la app.
+· Nav: Menú lateral con un enlace a la vista "Highs and Lows".
+· Main: Contiene la sección principal con:
+  · Panel de filtros: Selector de hoja y tres sliders (P mínimo, PU mínimo, PB mínimo) con sus valores mostrados, más botones de reset y contador de resultados.
+  · Panel de tabla: Botones para descargar PDF y compartir, y una tabla con columnas Ticker, V, U, B, N, P, PU, PB.
+· Toast: Elemento para notificaciones.
+· Scripts: Carga app.js al final.
+
+Si necesitas que revise o modifique alguna parte concreta, dímelo.
