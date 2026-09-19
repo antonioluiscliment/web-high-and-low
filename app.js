@@ -163,13 +163,11 @@ function prettyReportName(name) {
 }
 
 function driveEmbedUrl(id) { return `https://drive.google.com/file/d/${id}/preview`; }
-function driveViewUrl(id) { return `https://drive.google.com/file/d/${id}/view`; }
 function driveDownloadUrl(id) { return `https://drive.google.com/uc?export=download&id=${id}`; }
 
 function showReport(id) {
   if (!id) return;
   $("recFrame").src = driveEmbedUrl(id);
-  $("recOpenTab").href = driveViewUrl(id);
   $("recDownload").href = driveDownloadUrl(id);
   $("recPanel").hidden = false;
 }
@@ -403,11 +401,12 @@ function downloadPdf() {
 async function shareView() {
   updateUrl();
   const url = location.href;
-  const shareData = {
-    title: "Análisis de Highs and Lows",
-    text: `Highs and Lows — ${currentSheet}`,
-    url,
-  };
+  let text = `Highs and Lows — ${currentSheet}`;
+  if (currentView === "recomendaciones") {
+    const selected = REC_FILES.find(f => f.id === $("recSelect").value);
+    text = `Recomendaciones — ${prettyReportName(selected && selected.name)}`;
+  }
+  const shareData = { title: "Análisis de Highs and Lows", text, url };
   if (navigator.share) {
     try { await navigator.share(shareData); return; } catch (e) { /* usuario canceló, seguimos con fallback */ }
   }
@@ -511,6 +510,7 @@ function init(recFiles) {
     showReport($("recSelect").value);
     updateUrl();
   });
+  $("recShare").addEventListener("click", shareView);
 
   const requestedView = params.get("view") === "recomendaciones" ? "recomendaciones" : "highs-lows";
   switchView(requestedView);
