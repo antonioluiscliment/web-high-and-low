@@ -48,6 +48,8 @@ let TICKER_NAMES = {};
 let currentSheet = null;
 let bounds = {};      // { field: {min, max} } for the current sheet
 let defaults = {};    // default (least restrictive) slider value per field
+let currentView = "highs-lows";
+let REC_FILES = [];   // [{name, id}] — informes "Agente..." de la carpeta PDF de BARRONS
 
 function $(id) { return document.getElementById(id); }
 
@@ -139,6 +141,70 @@ async function loadTickerNames() {
   } catch (e) {
     return {};
   }
+}
+
+// --- Vista "Recomendaciones": informes "Agente..." de la carpeta PDF de BARRONS en Drive ---
+// recommendations-config.json es un manifiesto (igual que sheets-config.json): lista los
+// ficheros "Agente..." de esa carpeta como {name, id}, porque una app estática sin backend
+// no puede listar el contenido de una carpeta de Drive en vivo. Hay que añadir una entrada
+// cada vez que se genere un informe nuevo. La carpeta PDF está compartida como "cualquiera
+// con el enlace, lector", así que estos ids se pueden incrustar sin iniciar sesión.
+async function loadRecommendations() {
+  try {
+    const config = await fetch("recommendations-config.json").then(r => (r.ok ? r.json() : null));
+    return (config && Array.isArray(config.files)) ? config.files : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function prettyReportName(name) {
+  return String(name || "").replace(/_/g, " ");
+}
+
+function driveEmbedUrl(id) { return `https://drive.google.com/file/d/${id}/preview`; }
+function driveViewUrl(id) { return `https://drive.google.com/file/d/${id}/view`; }
+function driveDownloadUrl(id) { return `https://drive.google.com/uc?export=download&id=${id}`; }
+
+function showReport(id) {
+  if (!id) return;
+  $("recFrame").src = driveEmbedUrl(id);
+  $("recOpenTab").href = driveViewUrl(id);
+  $("recDownload").href = driveDownloadUrl(id);
+  $("recPanel").hidden = false;
+}
+
+function setupRecommendationsView(files, applyFromParams) {
+  REC_FILES = files || [];
+  const sel = $("recSelect");
+  const empty = $("recEmpty");
+  const panel = $("recPanel");
+  sel.innerHTML = "";
+
+  if (REC_FILES.length === 0) {
+    empty.hidden = false;
+    panel.hidden = true;
+    sel.hidden = true;
+    return;
+  }
+  empty.hidden = true;
+  sel.hidden = false;
+
+  REC_FILES.forEach(f => {
+    const opt = document.createElement("option");
+    opt.value = f.id;
+    opt.textContent = prettyReportName(f.name);
+    sel.appendChild(opt);
+  });
+
+  let selectedId = REC_FILES[0].id;
+  if (applyFromParams) {
+    const p = new URLSearchParams(location.search);
+    const raw = p.get("report");
+    if (raw && REC_FILES.some(f => f.id === raw)) selectedId = raw;
+  }
+  sel.value = selectedId;
+  showReport(selectedId);
 }
 
 function computeBounds(rows, field, decimals) {
@@ -282,11 +348,17 @@ function renderTable() {
 
 function updateUrl() {
   const p = new URLSearchParams();
-  p.set("sheet", currentSheet);
-  FILTERS.forEach(f => {
-    const val = Number($(f.inputId).value);
-    if (val !== defaults[f.key]) p.set(paramKeyFor(f.key), val);
-  });
+  p.set("view", currentView);
+  if (currentView === "recomendaciones") {
+    const sel = $("recSelect");
+    if (sel && sel.value) p.set("report", sel.value);
+  } else {
+    p.set("sheet", currentSheet);
+    FILTERS.forEach(f => {
+      const val = Number($(f.inputId).value);
+      if (val !== defaults[f.key]) p.set(paramKeyFor(f.key), val);
+    });
+  }
   const newUrl = `${location.pathname}?${p.toString()}`;
   history.replaceState(null, "", newUrl);
 }
@@ -355,6 +427,28 @@ function setupMenu() {
   $("menuToggle").addEventListener("click", open);
   $("menuClose").addEventListener("click", close);
   overlay.addEventListener("click", close);
+
+  document.querySelectorAll(".menu-item").forEach(a => {
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      switchView(a.getAttribute("data-view"));
+      close();
+    });
+  });
+}
+
+// Cambia la sección visible ("Highs and Lows" / "Recomendaciones") y resalta la opción
+// correspondiente en el menú. Ambas vistas se inicializan siempre en init(), estén o no
+// activas, para que el cambio de vista sea instantáneo (sin recargar datos).
+function switchView(view) {
+  currentView = view;
+  document.querySelectorAll(".view").forEach(sec => {
+    sec.hidden = sec.id !== `view-${view}`;
+  });
+  document.querySelectorAll(".menu-item").forEach(a => {
+    a.classList.toggle("active", a.getAttribute("data-view") === view);
+  });
+  updateUrl();
 }
 
 function setupHeaderHints() {
@@ -366,7 +460,7 @@ function setupHeaderHints() {
   });
 }
 
-function init() {
+function init(recFiles) {
   setupMenu();
   setupHeaderHints();
 
@@ -411,10 +505,19 @@ function init() {
 
   $("downloadPdf").addEventListener("click", downloadPdf);
   $("shareView").addEventListener("click", shareView);
+
+  setupRecommendationsView(recFiles, true);
+  $("recSelect").addEventListener("change", () => {
+    showReport($("recSelect").value);
+    updateUrl();
+  });
+
+  const requestedView = params.get("view") === "recomendaciones" ? "recomendaciones" : "highs-lows";
+  switchView(requestedView);
 }
 
-Promise.all([loadData(), loadTickerNames()])
-  .then(([json, names]) => { DATA = json; TICKER_NAMES = names; init(); })
+Promise.all([loadData(), loadTickerNames(), loadRecommendations()])
+  .then(([json, names, recFiles]) => { DATA = json; TICKER_NAMES = names; init(recFiles); })
   .catch(err => {
     document.body.innerHTML = `<p style="padding:40px;font-family:sans-serif;color:#b00">
       No se pudieron cargar los datos (sheets-config.json o alguna Google Sheet). ${err}</p>`;
