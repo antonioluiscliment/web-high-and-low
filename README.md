@@ -13,6 +13,7 @@ exportación a PDF.
 | `styles.css` | Estilos. |
 | `app.js` | Lógica: carga de datos desde Google Sheets, filtros, tabla, PDF y compartir. |
 | `sheets-config.json` | Los 6 identificadores de Google Sheets actuales, uno por hoja. |
+| `ticker-names.json` | Nombre abreviado (estilo Barron's) de cada ticker, para el aviso al mantener pulsado. No cubre el 100% de los tickers históricos. |
 
 No hay paso de compilación: es HTML/CSS/JS plano, así que Vercel lo sirve
 directamente como sitio estático (no hace falta ningún `vercel.json`).
@@ -21,20 +22,28 @@ directamente como sitio estático (no hace falta ningún `vercel.json`).
 
 - Selector de hoja (las 6 hojas: NYSE American Lows/High, NASDAQ Lows/High,
   NYSE Lows/High).
-- Filtros: P mínimo, PU mínimo, PB mínimo. Los rangos de cada deslizador
-  (mínimo y máximo posibles) se calculan automáticamente a partir de los
-  valores reales presentes en la hoja seleccionada — al cambiar de hoja,
-  los rangos se recalculan.
+- Filtros: mínimos enteros de V, U, B, N, y mínimos de P, PU, PB (%). Los
+  rangos de cada deslizador (mínimo y máximo posibles) se calculan
+  automáticamente a partir de los valores reales presentes en la hoja
+  seleccionada — al cambiar de hoja, los rangos se recalculan.
 - Si una fila no tiene dato para un campo filtrado y el filtro está activo
   (movido desde su posición por defecto), esa fila se excluye del
   resultado, ya que no se puede verificar que cumpla el umbral.
-- Tabla con una fila por valor, columnas: Ticker, V, U, B, N, P, PU, PB.
+- Tabla con una fila numerada por valor (columna `#`), columnas: Ticker, V,
+  U, B, N, P, PU, PB.
+- Mantener pulsado un ticker muestra el nombre de la empresa (desde
+  `ticker-names.json`); mantener pulsada una cabecera de columna muestra
+  una breve explicación de qué mide esa columna. Ambos usan una barra fija
+  bajo la cabecera (`#hintBar`) y funcionan con ratón, dedo o lápiz.
+- Debajo de la tabla se indica cuántas filas cumplen los filtros sobre el
+  total de la hoja, con el porcentaje que representan.
 - Botón **Descargar PDF**: genera un PDF (apaisado) con la tabla tal y
-  como se está viendo (hoja + filtros aplicados).
+  como se está viendo (hoja + filtros aplicados, incluida la columna `#`
+  y el porcentaje de filas mostradas).
 - Botón **Compartir**: usa el share nativo del móvil/navegador si está
   disponible; si no, copia al portapapeles un enlace que reproduce
   exactamente la misma hoja y los mismos filtros (van codificados en la
-  URL como parámetros `?sheet=...&minP=...&minPU=...&minPB=...`).
+  URL como parámetros `?sheet=...&minV=...&minU=...&minB=...&minN=...&minP=...&minPU=...&minPB=...`).
 
 ## De dónde vienen los datos
 
@@ -50,7 +59,10 @@ directamente como sitio estático (no hace falta ningún `vercel.json`).
   devuelve el contenido en CSV.
 - De cada fila solo se usan el Ticker (primera columna) y las 7 últimas
   columnas, que son siempre V, U, B, N, P, PU, PB — las columnas de fecha
-  intermedias (una por semana, con H/L) no se usan en esta vista.
+  intermedias (una por semana, con H/L) no se usan en esta vista. Se
+  descarta cualquier fila cuyas 7 últimas columnas no sean todas números
+  válidos, para ser robustos frente a filas o metadatos sueltos que a
+  veces añade la exportación CSV al final.
 
 ## Actualizar los datos cada semana
 
@@ -60,6 +72,10 @@ identificadores de las 6 hojas (se recrean con un id nuevo): hay que
 editar `sheets-config.json` con los 6 ids actuales y subir ese único
 fichero al repositorio de GitHub — Vercel redespliega automáticamente.
 No hace falta tocar `index.html`, `app.js` ni `styles.css`.
+
+`ticker-names.json` no se actualiza cada semana: solo cubre los tickers
+resueltos hasta la fecha en que se generó (no es 100% completo). Si se
+quiere ampliar su cobertura más adelante, es un proceso aparte.
 
 ## Desplegar en Vercel
 
