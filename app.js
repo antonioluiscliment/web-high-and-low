@@ -7,18 +7,44 @@
    Cada fila de las hojas trae: Ticker, columnas de fecha (una por semana, con H/L o
    vacío) y, siempre al final, 7 columnas de estadísticas: V, U, B, N, P, PU, PB. Como el
    número de columnas de fecha crece cada semana, aquí no se cuentan por posición fija:
-   se toman siempre las últimas 7 columnas de cada fila.
+   se toman siempre las últimas 7 columnas de cada fila, y se descarta cualquier fila cuyas
+   7 columnas finales no sean todas números válidos (protege frente a filas sueltas o
+   metadatos que a veces añade la exportación CSV al final).
+
+   Nombres de empresa: ticker-names.json es un fichero estático (ticker -> nombre
+   abreviado, al estilo Barron's) construido a partir del histórico de resolución de
+   nombres del proyecto BARRONS. No cubre el 100% de los tickers (los más antiguos, de
+   antes de que se guardara este dato, pueden faltar) — para esos se muestra "Nombre no
+   disponible".
 */
 
 const STAT_COLS = ["V", "U", "B", "N", "P", "PU", "PB"];
 
+const COL_INFO = {
+  "#":  "Número de orden dentro de los resultados mostrados (con los filtros actuales).",
+  "Ticker": "Símbolo bursátil de la empresa. Mantén pulsado para ver su nombre.",
+  "V":  "Veces que ha aparecido en total desde que se sigue.",
+  "U":  "Racha actual: semanas seguidas apareciendo, contando hacia atrás desde la última fecha.",
+  "B":  "Semanas seguidas SIN aparecer, contando hacia atrás desde la última fecha.",
+  "N":  "Número total de semanas registradas en esta hoja.",
+  "P":  "Porcentaje de semanas en que ha aparecido en total (V ÷ N).",
+  "PU": "Porcentaje que representa la racha actual sobre el total de semanas (U ÷ N).",
+  "PB": "Porcentaje de semanas seguidas sin aparecer sobre el total (B ÷ N).",
+};
+
+// Filtros: primero los de valor entero mínimo (V,U,B,N), luego los de porcentaje (P,PU,PB).
 const FILTERS = [
+  { key: "V",  inputId: "minV",  valId: "minVVal",  type: "min", decimals: 0, suffix: "" },
+  { key: "U",  inputId: "minU",  valId: "minUVal",  type: "min", decimals: 0, suffix: "" },
+  { key: "B",  inputId: "minB",  valId: "minBVal",  type: "min", decimals: 0, suffix: "" },
+  { key: "N",  inputId: "minN",  valId: "minNVal",  type: "min", decimals: 0, suffix: "" },
   { key: "P",  inputId: "minP",  valId: "minPVal",  type: "min", decimals: 0, suffix: "%" },
   { key: "PU", inputId: "minPU", valId: "minPUVal", type: "min", decimals: 0, suffix: "%" },
   { key: "PB", inputId: "minPB", valId: "minPBVal", type: "min", decimals: 0, suffix: "%" },
 ];
 
 let DATA = null;
+let TICKER_NAMES = {};
 let currentSheet = null;
 let bounds = {};      // { field: {min, max} } for the current sheet
 let defaults = {};    // default (least restrictive) slider value per field
@@ -60,17 +86,26 @@ function parseCsv(text) {
   return rows.filter(r => !(r.length === 1 && r[0] === ""));
 }
 
+function isFiniteNumberStr(s) {
+  return s !== "" && s !== null && s !== undefined && Number.isFinite(Number(s));
+}
+
 // Convierte las filas crudas de una hoja (cabecera + datos) en objetos
 // {Ticker, V, U, B, N, P, PU, PB}, tomando las estadísticas por las últimas 7 columnas
 // (robusto frente a que cambie el número de columnas de fecha, o a alguna fila con algún
-// campo en blanco de más).
+// campo en blanco de más). Descarta cualquier fila cuyas 7 últimas columnas no sean todas
+// numéricas — así se filtran automáticamente filas sueltas ajenas a los datos.
 function rowsToRecords(csvRows) {
   const dataRows = csvRows.slice(1); // primera fila = cabecera
   return dataRows
     .filter(r => r.length >= 8 && r[0])
     .map(r => {
       const stats = r.slice(-7);
-      const rec = { Ticker: r[0] };
+      return { Ticker: r[0], stats };
+    })
+    .filter(({ stats }) => stats.every(isFiniteNumberStr))
+    .map(({ Ticker, stats }) => {
+      const rec = { Ticker };
       STAT_COLS.forEach((key, i) => { rec[key] = stats[i]; });
       return rec;
     });
@@ -96,6 +131,14 @@ async function loadData() {
     sheets[name] = rowsToRecords(parseCsv(text));
   }));
   return { generated_at: config.generated_at || null, sheets };
+}
+
+async function loadTickerNames() {
+  try {
+    return await fetch("ticker-names.json").then(r => (r.ok ? r.json() : {}));
+  } catch (e) {
+    return {};
+  }
 }
 
 function computeBounds(rows, field, decimals) {
@@ -137,7 +180,10 @@ function setupFiltersForSheet(sheetName, applyFromParams) {
 }
 
 function paramKeyFor(fieldKey) {
-  return { "P": "minP", "PU": "minPU", "PB": "minPB" }[fieldKey];
+  return {
+    "V": "minV", "U": "minU", "B": "minB", "N": "minN",
+    "P": "minP", "PU": "minPU", "PB": "minPB",
+  }[fieldKey];
 }
 
 function updateFilterLabel(f) {
@@ -172,6 +218,30 @@ function fmt(val, decimals) {
   return decimals !== undefined ? n.toFixed(decimals) : String(n);
 }
 
+// --- Pista al mantener pulsado (ticker → nombre, cabecera → explicación) -----------------
+function showHint(text) {
+  const bar = $("hintBar");
+  bar.textContent = text;
+  bar.classList.add("show");
+}
+function hideHint() {
+  $("hintBar").classList.remove("show");
+}
+function bindPressHint(el, textFn) {
+  const start = (e) => { showHint(textFn()); };
+  const end = () => hideHint();
+  el.addEventListener("pointerdown", start);
+  el.addEventListener("pointerup", end);
+  el.addEventListener("pointerleave", end);
+  el.addEventListener("pointercancel", end);
+  el.addEventListener("contextmenu", (e) => e.preventDefault());
+}
+
+function tickerHintText(ticker) {
+  const name = TICKER_NAMES[ticker];
+  return name ? `${ticker} — ${name}` : `${ticker} — nombre no disponible`;
+}
+
 function renderTable() {
   const rows = DATA.sheets[currentSheet] || [];
   const filterVals = currentFilterValues();
@@ -181,13 +251,14 @@ function renderTable() {
   tbody.innerHTML = "";
 
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="8">No hay filas que cumplan los filtros seleccionados.</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="9">No hay filas que cumplan los filtros seleccionados.</td></tr>';
   } else {
     const frag = document.createDocumentFragment();
-    filtered.forEach(r => {
+    filtered.forEach((r, i) => {
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td>${r.Ticker ?? "—"}</td>
+        <td class="col-num">${i + 1}</td>
+        <td class="col-ticker" data-ticker="${r.Ticker}">${r.Ticker ?? "—"}</td>
         <td>${fmt(r.V, 0)}</td>
         <td>${fmt(r.U, 0)}</td>
         <td>${fmt(r.B, 0)}</td>
@@ -196,12 +267,16 @@ function renderTable() {
         <td>${fmt(r.PU, 0)}</td>
         <td>${fmt(r.PB, 0)}</td>
       `;
+      const tickerCell = tr.querySelector(".col-ticker");
+      bindPressHint(tickerCell, () => tickerHintText(r.Ticker));
       frag.appendChild(tr);
     });
     tbody.appendChild(frag);
   }
 
-  $("resultCount").textContent = `${filtered.length} de ${rows.length} filas`;
+  const total = rows.length;
+  const pct = total > 0 ? ((filtered.length / total) * 100).toFixed(1) : "0.0";
+  $("resultCount").textContent = `${filtered.length} de ${total} filas (${pct}%)`;
   return filtered;
 }
 
@@ -231,11 +306,16 @@ function downloadPdf() {
   doc.setFontSize(14);
   doc.text("Análisis de Highs and Lows", 40, 36);
   doc.setFontSize(10);
-  doc.text(`Hoja: ${currentSheet}  ·  ${filtered.length} filas  ·  ${new Date().toLocaleDateString("es-ES")}`, 40, 54);
+  const total = (DATA.sheets[currentSheet] || []).length;
+  const pct = total > 0 ? ((filtered.length / total) * 100).toFixed(1) : "0.0";
+  doc.text(
+    `Hoja: ${currentSheet}  ·  ${filtered.length} de ${total} filas (${pct}%)  ·  ${new Date().toLocaleDateString("es-ES")}`,
+    40, 54
+  );
 
-  const head = [["Ticker", "V", "U", "B", "N", "P", "PU", "PB"]];
-  const body = filtered.map(r => [
-    r.Ticker ?? "", fmt(r.V, 0), fmt(r.U, 0), fmt(r.B, 0), fmt(r.N, 0), fmt(r.P, 0), fmt(r.PU, 0), fmt(r.PB, 0)
+  const head = [["#", "Ticker", "V", "U", "B", "N", "P", "PU", "PB"]];
+  const body = filtered.map((r, i) => [
+    i + 1, r.Ticker ?? "", fmt(r.V, 0), fmt(r.U, 0), fmt(r.B, 0), fmt(r.N, 0), fmt(r.P, 0), fmt(r.PU, 0), fmt(r.PB, 0)
   ]);
 
   doc.autoTable({
@@ -277,8 +357,18 @@ function setupMenu() {
   overlay.addEventListener("click", close);
 }
 
+function setupHeaderHints() {
+  document.querySelectorAll("#resultsTable thead th[data-col]").forEach(th => {
+    const key = th.getAttribute("data-col");
+    const text = COL_INFO[key];
+    if (!text) return;
+    bindPressHint(th, () => `${key} — ${text}`);
+  });
+}
+
 function init() {
   setupMenu();
+  setupHeaderHints();
 
   const params = new URLSearchParams(location.search);
   const sheetNames = Object.keys(DATA.sheets);
@@ -323,8 +413,8 @@ function init() {
   $("shareView").addEventListener("click", shareView);
 }
 
-loadData()
-  .then(json => { DATA = json; init(); })
+Promise.all([loadData(), loadTickerNames()])
+  .then(([json, names]) => { DATA = json; TICKER_NAMES = names; init(); })
   .catch(err => {
     document.body.innerHTML = `<p style="padding:40px;font-family:sans-serif;color:#b00">
       No se pudieron cargar los datos (sheets-config.json o alguna Google Sheet). ${err}</p>`;
