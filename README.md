@@ -1,4 +1,3 @@
-# web-high-and-low
 # Análisis de Highs and Lows
 
 Aplicación web estática (sin backend ni build) que visualiza en vivo los
@@ -14,6 +13,7 @@ exportación a PDF.
 | `app.js` | Lógica: carga de datos desde Google Sheets, filtros, tabla, PDF y compartir. |
 | `sheets-config.json` | Los 6 identificadores de Google Sheets actuales, uno por hoja. |
 | `ticker-names.json` | Nombre abreviado (estilo Barron's) de cada ticker, para el aviso al mantener pulsado. No cubre el 100% de los tickers históricos. |
+| `recommendations-config.json` | Lista de los informes "Agente..." (ver vista "Recomendaciones"), como `{name, id}` — id del fichero PDF en Drive. |
 
 No hay paso de compilación: es HTML/CSS/JS plano, así que Vercel lo sirve
 directamente como sitio estático (no hace falta ningún `vercel.json`).
@@ -45,6 +45,24 @@ directamente como sitio estático (no hace falta ningún `vercel.json`).
   exactamente la misma hoja y los mismos filtros (van codificados en la
   URL como parámetros `?sheet=...&minV=...&minU=...&minB=...&minN=...&minP=...&minPU=...&minPB=...`).
 
+## Segunda opción del menú: "Recomendaciones"
+
+- Selector con los informes del agente de previsión de Nasdaq High (ver
+  [[agente-highs-nasdaq]] en las notas del proyecto): todos los ficheros de
+  la subcarpeta **PDF** de BARRONS en Drive cuyo nombre empieza por
+  "Agente" (los PDFs semanales de Barron's, que no empiezan por "Agente",
+  quedan fuera de esta lista).
+- El informe elegido se incrusta tal cual en la página, con el visor nativo
+  de Google Drive (`https://drive.google.com/file/d/<ID>/preview` en un
+  `<iframe>`), que ya trae sus propios botones de imprimir y descargar.
+  Además hay dos enlaces propios como respaldo: **Abrir en pestaña nueva**
+  y **Descargar PDF** (descarga directa, `.../uc?export=download&id=<ID>`).
+- Si `recommendations-config.json` está vacío (no hay ningún informe
+  "Agente..." todavía), se muestra un aviso en vez del selector.
+- Igual que en "Highs and Lows", la vista activa y el informe elegido
+  quedan codificados en la URL (`?view=recomendaciones&report=<ID>`), así
+  que un enlace copiado reabre exactamente el mismo informe.
+
 ## De dónde vienen los datos
 
 - Cada una de las 6 hojas de cálculo vive en la carpeta "Google Sheets"
@@ -53,6 +71,11 @@ directamente como sitio estático (no hace falta ningún `vercel.json`).
 - Esa carpeta está compartida como "Cualquiera con el enlace, lector", y
   ese permiso lo hereda automáticamente cualquier hoja nueva que se cree
   dentro — no hace falta compartir cada hoja a mano cada semana.
+- La carpeta **PDF** de BARRONS (de donde salen los informes "Agente...")
+  también está compartida como "Cualquiera con el enlace, lector" —
+  incluye tanto los informes del agente como los PDFs semanales de
+  Barron's que Antonio sube ahí, aunque la vista "Recomendaciones" solo
+  lista los que empiezan por "Agente".
 - `app.js` lee cada hoja en el navegador del visitante, directamente y sin
   iniciar sesión, a través del endpoint público de Google Visualization
   (`https://docs.google.com/spreadsheets/d/<ID>/gviz/tq?tqx=out:csv`), que
@@ -77,6 +100,13 @@ No hace falta tocar `index.html`, `app.js` ni `styles.css`.
 resueltos hasta la fecha en que se generó (no es 100% completo). Si se
 quiere ampliar su cobertura más adelante, es un proceso aparte.
 
+Cada vez que se genere un informe nuevo del agente ("Agente...pdf" en la
+carpeta PDF de BARRONS), hay que añadir una entrada a
+`recommendations-config.json` (`{"name": "...", "id": "<id del PDF en
+Drive>"}`) y subir ese fichero al repositorio — igual que con
+`sheets-config.json`, es el único cambio necesario para que aparezca en la
+vista "Recomendaciones".
+
 ## Desplegar en Vercel
 
 1. Sube el contenido de esta carpeta a un repositorio de GitHub.
@@ -93,10 +123,13 @@ El menú (`<ul class="menu-list">` en `index.html`) está preparado para
 crecer: cada opción es un `<li><a class="menu-item" data-view="...">`.
 Para añadir una vista nueva:
 
-1. Añade un nuevo `<section id="view-NOMBRE" class="view">` en
-   `index.html` con su contenido.
-2. Añade el `<li>` correspondiente en el menú.
-3. En `app.js`, añade la lógica para mostrar/ocultar la sección activa
-   según la opción de menú seleccionada (de momento solo hay una vista,
-   así que esa lógica de cambio de vista aún no existe — con una sola
-   opción no hacía falta).
+1. Añade un nuevo `<section id="view-NOMBRE" class="view" hidden>` en
+   `index.html` con su contenido (el atributo `hidden` es importante: así
+   arranca oculta).
+2. Añade el `<li><a class="menu-item" data-view="NOMBRE">...</a></li>`
+   correspondiente en el menú.
+
+No hace falta tocar la lógica de cambio de vista: `switchView()` en
+`app.js` ya busca cualquier `.view`/`.menu-item` con ese `data-view` y
+alterna la visibilidad y el estado activo automáticamente (y lo refleja en
+la URL con `?view=NOMBRE`).
