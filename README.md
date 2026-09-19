@@ -54,9 +54,11 @@ directamente como sitio estático (no hace falta ningún `vercel.json`).
   quedan fuera de esta lista).
 - El informe elegido se incrusta tal cual en la página, con el visor nativo
   de Google Drive (`https://drive.google.com/file/d/<ID>/preview` en un
-  `<iframe>`), que ya trae sus propios botones de imprimir y descargar.
-  Además hay dos enlaces propios como respaldo: **Abrir en pestaña nueva**
-  y **Descargar PDF** (descarga directa, `.../uc?export=download&id=<ID>`).
+  `<iframe>`). Debajo, los mismos dos botones que en "Highs and Lows":
+  **Descargar PDF** (descarga directa del PDF elegido,
+  `.../uc?export=download&id=<ID>`) y **Compartir** (share nativo o,
+  si no está disponible, copia al portapapeles un enlace que reabre
+  exactamente ese mismo informe).
 - Si `recommendations-config.json` está vacío (no hay ningún informe
   "Agente..." todavía), se muestra un aviso en vez del selector.
 - Igual que en "Highs and Lows", la vista activa y el informe elegido
