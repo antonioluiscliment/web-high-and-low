@@ -25,6 +25,7 @@
   </div>
   <ul class="menu-list">
     <li><a href="#" class="menu-item active" data-view="highs-lows">Highs and Lows</a></li>
+    <li><a href="#" class="menu-item" data-view="recomendaciones">Recomendaciones</a></li>
   </ul>
 </nav>
 <div id="menuOverlay" class="menu-overlay"></div>
@@ -97,6 +98,26 @@
           </thead>
           <tbody id="resultsBody"></tbody>
         </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-recomendaciones" class="view" hidden>
+    <div class="panel filters-panel">
+      <div class="filter-row">
+        <label for="recSelect">Informe</label>
+        <select id="recSelect"></select>
+      </div>
+      <p id="recEmpty" class="result-count" hidden>Todavía no hay ningún informe del agente en la carpeta PDF.</p>
+    </div>
+
+    <div class="panel table-panel" id="recPanel" hidden>
+      <div class="table-toolbar">
+        <a id="recOpenTab" class="btn btn-secondary" href="#" target="_blank" rel="noopener">Abrir en pestaña nueva</a>
+        <a id="recDownload" class="btn btn-primary" href="#" download>Descargar PDF</a>
+      </div>
+      <div class="rec-frame-wrap">
+        <iframe id="recFrame" class="rec-frame" title="Informe del agente" src="" loading="lazy"></iframe>
       </div>
     </div>
   </section>
