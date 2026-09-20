@@ -40,33 +40,37 @@
       </div>
 
       <div class="filter-grid">
-        <div class="filter-field">
-          <label for="minV">V mínimo <span class="filter-value" id="minVVal"></span></label>
-          <input type="range" id="minV" min="0" max="100" step="1">
+        <div class="filter-field filter-field--range">
+          <label>V</label>
+          <div class="range-inputs">
+            <input type="number" id="minV" step="1" aria-label="V mínimo">
+            <span class="range-sep">–</span>
+            <input type="number" id="maxV" step="1" aria-label="V máximo">
+          </div>
         </div>
-        <div class="filter-field">
-          <label for="minU">U mínimo <span class="filter-value" id="minUVal"></span></label>
-          <input type="range" id="minU" min="0" max="100" step="1">
+        <div class="filter-field filter-field--range">
+          <label>U</label>
+          <div class="range-inputs">
+            <input type="number" id="minU" step="1" aria-label="U mínimo">
+            <span class="range-sep">–</span>
+            <input type="number" id="maxU" step="1" aria-label="U máximo">
+          </div>
         </div>
-        <div class="filter-field">
-          <label for="minB">B mínimo <span class="filter-value" id="minBVal"></span></label>
-          <input type="range" id="minB" min="0" max="100" step="1">
+        <div class="filter-field filter-field--range">
+          <label>B</label>
+          <div class="range-inputs">
+            <input type="number" id="minB" step="1" aria-label="B mínimo">
+            <span class="range-sep">–</span>
+            <input type="number" id="maxB" step="1" aria-label="B máximo">
+          </div>
         </div>
-        <div class="filter-field">
-          <label for="minN">N mínimo <span class="filter-value" id="minNVal"></span></label>
-          <input type="range" id="minN" min="0" max="100" step="1">
-        </div>
-        <div class="filter-field">
-          <label for="minP">P mínimo <span class="filter-value" id="minPVal"></span></label>
-          <input type="range" id="minP" min="0" max="100" step="1">
-        </div>
-        <div class="filter-field">
-          <label for="minPU">PU mínimo <span class="filter-value" id="minPUVal"></span></label>
-          <input type="range" id="minPU" min="0" max="100" step="1">
-        </div>
-        <div class="filter-field">
-          <label for="minPB">PB mínimo <span class="filter-value" id="minPBVal"></span></label>
-          <input type="range" id="minPB" min="0" max="100" step="1">
+        <div class="filter-field filter-field--range">
+          <label>N</label>
+          <div class="range-inputs">
+            <input type="number" id="minN" step="1" aria-label="N mínimo">
+            <span class="range-sep">–</span>
+            <input type="number" id="maxN" step="1" aria-label="N máximo">
+          </div>
         </div>
       </div>
 
