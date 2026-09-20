@@ -22,12 +22,12 @@ directamente como sitio estático (no hace falta ningún `vercel.json`).
 
 - Selector de hoja (las 6 hojas: NYSE American Lows/High, NASDAQ Lows/High,
   NYSE Lows/High).
-- Filtros: para V, U, B y N, dos casillas de número entero (mínimo y
+- Filtros: para V, U y B, dos casillas de número entero (mínimo y
   máximo) por campo. Por defecto cada casilla arranca con el rango real
   completo de esa hoja (por ejemplo V mínimo 1 y V máximo 6 si esos son
   los valores extremos presentes) — es decir, sin filtro activo. Al
-  cambiar de hoja se recalculan. P, PU y PB no son filtrables (se siguen
-  viendo en la tabla, solo se quitaron del panel de filtros).
+  cambiar de hoja se recalculan. N, P, PU y PB no son filtrables (se
+  siguen viendo en la tabla, solo se quitaron del panel de filtros).
 - Si una fila no tiene dato para un campo filtrado y el rango está activo
   (distinto del rango completo por defecto), esa fila se excluye del
   resultado, ya que no se puede verificar que esté dentro del rango.
@@ -45,7 +45,7 @@ directamente como sitio estático (no hace falta ningún `vercel.json`).
 - Botón **Compartir**: usa el share nativo del móvil/navegador si está
   disponible; si no, copia al portapapeles un enlace que reproduce
   exactamente la misma hoja y los mismos filtros (van codificados en la
-  URL como parámetros `?sheet=...&minV=...&maxV=...&minU=...&maxU=...&minB=...&maxB=...&minN=...&maxN=...`,
+  URL como parámetros `?sheet=...&minV=...&maxV=...&minU=...&maxU=...&minB=...&maxB=...`,
   solo los que se hayan movido de su rango completo por defecto).
 
 ## Segunda opción del menú: "Recomendaciones"
