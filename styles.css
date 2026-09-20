@@ -171,13 +171,26 @@ body {
   margin-bottom: 6px;
   font-weight: 600;
 }
-.filter-value {
-  color: var(--accent-dark);
-  font-weight: 700;
+
+.range-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-.filter-field input[type="range"] {
+.range-inputs input[type="number"] {
   width: 100%;
-  accent-color: var(--accent);
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 0.95rem;
+  background: #fff;
+  color: var(--text);
+}
+.range-sep {
+  color: var(--text-muted);
+  font-weight: 600;
+  flex: none;
 }
 
 .filter-actions {
