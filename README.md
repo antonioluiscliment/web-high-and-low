@@ -22,13 +22,15 @@ directamente como sitio estático (no hace falta ningún `vercel.json`).
 
 - Selector de hoja (las 6 hojas: NYSE American Lows/High, NASDAQ Lows/High,
   NYSE Lows/High).
-- Filtros: mínimos enteros de V, U, B, N, y mínimos de P, PU, PB (%). Los
-  rangos de cada deslizador (mínimo y máximo posibles) se calculan
-  automáticamente a partir de los valores reales presentes en la hoja
-  seleccionada — al cambiar de hoja, los rangos se recalculan.
-- Si una fila no tiene dato para un campo filtrado y el filtro está activo
-  (movido desde su posición por defecto), esa fila se excluye del
-  resultado, ya que no se puede verificar que cumpla el umbral.
+- Filtros: para V, U, B y N, dos casillas de número entero (mínimo y
+  máximo) por campo. Por defecto cada casilla arranca con el rango real
+  completo de esa hoja (por ejemplo V mínimo 1 y V máximo 6 si esos son
+  los valores extremos presentes) — es decir, sin filtro activo. Al
+  cambiar de hoja se recalculan. P, PU y PB no son filtrables (se siguen
+  viendo en la tabla, solo se quitaron del panel de filtros).
+- Si una fila no tiene dato para un campo filtrado y el rango está activo
+  (distinto del rango completo por defecto), esa fila se excluye del
+  resultado, ya que no se puede verificar que esté dentro del rango.
 - Tabla con una fila numerada por valor (columna `#`), columnas: Ticker, V,
   U, B, N, P, PU, PB.
 - Mantener pulsado un ticker muestra el nombre de la empresa (desde
@@ -43,7 +45,8 @@ directamente como sitio estático (no hace falta ningún `vercel.json`).
 - Botón **Compartir**: usa el share nativo del móvil/navegador si está
   disponible; si no, copia al portapapeles un enlace que reproduce
   exactamente la misma hoja y los mismos filtros (van codificados en la
-  URL como parámetros `?sheet=...&minV=...&minU=...&minB=...&minN=...&minP=...&minPU=...&minPB=...`).
+  URL como parámetros `?sheet=...&minV=...&maxV=...&minU=...&maxU=...&minB=...&maxB=...&minN=...&maxN=...`,
+  solo los que se hayan movido de su rango completo por defecto).
 
 ## Segunda opción del menú: "Recomendaciones"
 
