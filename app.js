@@ -32,15 +32,14 @@ const COL_INFO = {
   "PB": "Porcentaje de semanas seguidas sin aparecer sobre el total (B ÷ N).",
 };
 
-// Filtros: primero los de valor entero mínimo (V,U,B,N), luego los de porcentaje (P,PU,PB).
+// Filtros: rango [mínimo, máximo] de enteros para V, U, B y N. Por defecto cada campo
+// arranca con el rango completo de valores presentes en la hoja seleccionada (sin
+// restricción); P, PU y PB ya no son filtrables (siguen viéndose en la tabla).
 const FILTERS = [
-  { key: "V",  inputId: "minV",  valId: "minVVal",  type: "min", decimals: 0, suffix: "" },
-  { key: "U",  inputId: "minU",  valId: "minUVal",  type: "min", decimals: 0, suffix: "" },
-  { key: "B",  inputId: "minB",  valId: "minBVal",  type: "min", decimals: 0, suffix: "" },
-  { key: "N",  inputId: "minN",  valId: "minNVal",  type: "min", decimals: 0, suffix: "" },
-  { key: "P",  inputId: "minP",  valId: "minPVal",  type: "min", decimals: 0, suffix: "%" },
-  { key: "PU", inputId: "minPU", valId: "minPUVal", type: "min", decimals: 0, suffix: "%" },
-  { key: "PB", inputId: "minPB", valId: "minPBVal", type: "min", decimals: 0, suffix: "%" },
+  { key: "V", minId: "minV", maxId: "maxV" },
+  { key: "U", minId: "minU", maxId: "maxU" },
+  { key: "B", minId: "minB", maxId: "maxB" },
+  { key: "N", minId: "minN", maxId: "maxN" },
 ];
 
 let DATA = null;
@@ -205,72 +204,63 @@ function setupRecommendationsView(files, applyFromParams) {
   showReport(selectedId);
 }
 
-function computeBounds(rows, field, decimals) {
+function computeBounds(rows, field) {
   const vals = rows.map(r => num(r[field])).filter(v => v !== null);
   if (vals.length === 0) return { min: 0, max: 0 };
-  const factor = Math.pow(10, decimals);
-  const lo = Math.floor(Math.min(...vals) * factor) / factor;
-  const hi = Math.ceil(Math.max(...vals) * factor) / factor;
-  return { min: lo, max: hi === lo ? lo + 1 : hi };
+  return { min: Math.min(...vals), max: Math.max(...vals) };
 }
 
+// Cada campo (V,U,B,N) tiene dos casillas de entero: mínimo y máximo. Por defecto (sin
+// tocar) cubren todo el rango real de la hoja — equivale a "sin filtro" para ese campo.
 function setupFiltersForSheet(sheetName, applyFromParams) {
   const rows = DATA.sheets[sheetName] || [];
   bounds = {};
   defaults = {};
 
   FILTERS.forEach(f => {
-    const b = computeBounds(rows, f.key, f.decimals);
+    const b = computeBounds(rows, f.key);
     bounds[f.key] = b;
-    const input = $(f.inputId);
-    const step = f.decimals > 0 ? Math.pow(10, -f.decimals) : 1;
-    input.min = b.min;
-    input.max = b.max;
-    input.step = step;
-    const defaultVal = f.type === "min" ? b.min : b.max;
-    defaults[f.key] = defaultVal;
+    defaults[f.key] = b; // rango completo = sin restricción
+    const minInput = $(f.minId);
+    const maxInput = $(f.maxId);
+    minInput.min = b.min; minInput.max = b.max; minInput.step = 1;
+    maxInput.min = b.min; maxInput.max = b.max; maxInput.step = 1;
 
-    let val = defaultVal;
+    let minVal = b.min;
+    let maxVal = b.max;
     if (applyFromParams) {
       const p = new URLSearchParams(location.search);
-      const raw = p.get(paramKeyFor(f.key));
-      if (raw !== null && !Number.isNaN(Number(raw))) {
-        val = Math.min(Math.max(Number(raw), b.min), b.max);
+      const rawMin = p.get(`min${f.key}`);
+      const rawMax = p.get(`max${f.key}`);
+      if (rawMin !== null && !Number.isNaN(Number(rawMin))) {
+        minVal = Math.min(Math.max(Number(rawMin), b.min), b.max);
+      }
+      if (rawMax !== null && !Number.isNaN(Number(rawMax))) {
+        maxVal = Math.min(Math.max(Number(rawMax), b.min), b.max);
       }
     }
-    input.value = val;
-    updateFilterLabel(f);
+    minInput.value = minVal;
+    maxInput.value = maxVal;
   });
-}
-
-function paramKeyFor(fieldKey) {
-  return {
-    "V": "minV", "U": "minU", "B": "minB", "N": "minN",
-    "P": "minP", "PU": "minPU", "PB": "minPB",
-  }[fieldKey];
-}
-
-function updateFilterLabel(f) {
-  const input = $(f.inputId);
-  const val = Number(input.value);
-  $(f.valId).textContent = (f.decimals > 0 ? val.toFixed(f.decimals) : Math.round(val)) + f.suffix;
 }
 
 function currentFilterValues() {
   const out = {};
-  FILTERS.forEach(f => { out[f.key] = Number($(f.inputId).value); });
+  FILTERS.forEach(f => {
+    out[f.key] = { min: Number($(f.minId).value), max: Number($(f.maxId).value) };
+  });
   return out;
 }
 
 function rowPasses(row, filterVals) {
   for (const f of FILTERS) {
-    const threshold = filterVals[f.key];
-    const isDefault = threshold === defaults[f.key];
+    const { min, max } = filterVals[f.key];
+    const d = defaults[f.key];
+    const isDefault = d && min === d.min && max === d.max;
     if (isDefault) continue; // sin restricción activa en este campo
     const v = num(row[f.key]);
-    if (v === null) return false; // dato ausente no puede cumplir un umbral activo
-    if (f.type === "min" && v < threshold) return false;
-    if (f.type === "max" && v > threshold) return false;
+    if (v === null) return false; // dato ausente no puede cumplir un rango activo
+    if (v < min || v > max) return false;
   }
   return true;
 }
@@ -353,8 +343,11 @@ function updateUrl() {
   } else {
     p.set("sheet", currentSheet);
     FILTERS.forEach(f => {
-      const val = Number($(f.inputId).value);
-      if (val !== defaults[f.key]) p.set(paramKeyFor(f.key), val);
+      const minVal = Number($(f.minId).value);
+      const maxVal = Number($(f.maxId).value);
+      const d = defaults[f.key];
+      if (!d || minVal !== d.min) p.set(`min${f.key}`, minVal);
+      if (!d || maxVal !== d.max) p.set(`max${f.key}`, maxVal);
     });
   }
   const newUrl = `${location.pathname}?${p.toString()}`;
@@ -489,10 +482,11 @@ function init(recFiles) {
   });
 
   FILTERS.forEach(f => {
-    $(f.inputId).addEventListener("input", () => {
-      updateFilterLabel(f);
-      renderTable();
-      updateUrl();
+    [$(f.minId), $(f.maxId)].forEach(input => {
+      input.addEventListener("input", () => {
+        renderTable();
+        updateUrl();
+      });
     });
   });
 
