@@ -32,14 +32,13 @@ const COL_INFO = {
   "PB": "Porcentaje de semanas seguidas sin aparecer sobre el total (B ÷ N).",
 };
 
-// Filtros: rango [mínimo, máximo] de enteros para V, U, B y N. Por defecto cada campo
+// Filtros: rango [mínimo, máximo] de enteros para V, U y B. Por defecto cada campo
 // arranca con el rango completo de valores presentes en la hoja seleccionada (sin
-// restricción); P, PU y PB ya no son filtrables (siguen viéndose en la tabla).
+// restricción); N, P, PU y PB no son filtrables (siguen viéndose en la tabla).
 const FILTERS = [
   { key: "V", minId: "minV", maxId: "maxV" },
   { key: "U", minId: "minU", maxId: "maxU" },
   { key: "B", minId: "minB", maxId: "maxB" },
-  { key: "N", minId: "minN", maxId: "maxN" },
 ];
 
 let DATA = null;
