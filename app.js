@@ -21,7 +21,7 @@
 const STAT_COLS = ["V", "U", "B", "N", "P", "PU", "PB"];
 
 const COL_INFO = {
-  "#":  "Número de orden dentro de los resultados mostrados (con los filtros actuales).",
+  "#": "Número de orden dentro de los resultados mostrados (con los filtros actuales).",
   "Ticker": "Símbolo bursátil de la empresa. Mantén pulsado para ver su nombre.",
   "V":  "Veces que ha aparecido en total desde que se sigue.",
   "U":  "Racha actual: semanas seguidas apareciendo, contando hacia atrás desde la última fecha.",
@@ -271,7 +271,7 @@ function fmt(val, decimals) {
   return decimals !== undefined ? n.toFixed(decimals) : String(n);
 }
 
-// --- Pista al mantener pulsado (ticker → nombre, cabecera → explicación) -----------------
+// --- Pista al mantener pulsado (ticker → nombre, cabecera → explicación) --------------
 function showHint(text) {
   const bar = $("hintBar");
   bar.textContent = text;
@@ -360,7 +360,11 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove("show"), 2200);
 }
 
-function downloadPdf() {
+// Construye el PDF de la vista "Highs and Lows" (tabla filtrada actual) con jsPDF +
+// jspdf-autotable, pero sin descargarlo: devuelve el documento jsPDF ya construido y el
+// nombre de fichero sugerido, para que downloadPdf() y shareHighsLowsPdf() puedan
+// reutilizar exactamente la misma construcción.
+function buildHighsLowsPdfDoc() {
   const filtered = renderTable();
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
@@ -387,26 +391,68 @@ function downloadPdf() {
     margin: { left: 40, right: 40 },
   });
 
-  doc.save(`highs-lows-${currentSheet.replace(/\s+/g, "_")}.pdf`);
+  const filename = `highs-lows-${currentSheet.replace(/\s+/g, "_")}.pdf`;
+  return { doc, filename };
 }
 
-async function shareView() {
-  updateUrl();
-  const url = location.href;
-  let text = `Highs and Lows — ${currentSheet}`;
-  if (currentView === "recomendaciones") {
-    const selected = REC_FILES.find(f => f.id === $("recSelect").value);
-    text = `Recomendaciones — ${prettyReportName(selected && selected.name)}`;
+function downloadPdf() {
+  const { doc, filename } = buildHighsLowsPdfDoc();
+  doc.save(filename);
+}
+
+// Comparte un PDF ya construido como fichero (no como enlace), usando la Web Share API de
+// nivel 2 (navigator.share con `files`) cuando el navegador la soporta — así el PDF llega
+// directamente a la app elegida (WhatsApp, Mail, etc.), tal como se comparte cualquier
+// otro archivo desde el móvil. Si el navegador no soporta compartir ficheros (p. ej. la
+// mayoría de navegadores de escritorio), o el usuario cancela el share nativo por un error
+// (no por decisión propia), se recurre a descargar el PDF y se avisa con un toast — nunca
+// se comparte un enlace a la página en su lugar.
+async function sharePdfFile(file, { title, text, fallbackDownload }) {
+  const canShareFiles = !!(navigator.canShare && navigator.share && navigator.canShare({ files: [file] }));
+  if (canShareFiles) {
+    try {
+      await navigator.share({ files: [file], title, text });
+      return;
+    } catch (e) {
+      if (e && e.name === "AbortError") return; // el usuario canceló el share — no forzamos descarga
+      // cualquier otro error: seguimos con el fallback de descarga
+    }
   }
-  const shareData = { title: "Análisis de Highs and Lows", text, url };
-  if (navigator.share) {
-    try { await navigator.share(shareData); return; } catch (e) { /* usuario canceló, seguimos con fallback */ }
-  }
+  fallbackDownload();
+  showToast("Tu navegador no permite compartir el PDF directamente: se ha descargado para que lo compartas tú.");
+}
+
+async function shareHighsLowsPdf() {
+  const { doc, filename } = buildHighsLowsPdfDoc();
+  const blob = doc.output("blob");
+  const file = new File([blob], filename, { type: "application/pdf" });
+  await sharePdfFile(file, {
+    title: "Análisis de Highs and Lows",
+    text: `Highs and Lows — ${currentSheet}`,
+    fallbackDownload: () => doc.save(filename),
+  });
+}
+
+async function shareRecommendationPdf() {
+  const selected = REC_FILES.find(f => f.id === $("recSelect").value);
+  if (!selected) return;
+  const filename = `${prettyReportName(selected.name)}.pdf`;
+  const fallbackDownload = () => { window.location.href = driveDownloadUrl(selected.id); };
   try {
-    await navigator.clipboard.writeText(url);
-    showToast("Enlace copiado al portapapeles");
+    const resp = await fetch(driveDownloadUrl(selected.id));
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const blob = await resp.blob();
+    const file = new File([blob], filename, { type: "application/pdf" });
+    await sharePdfFile(file, {
+      title: "Análisis de Highs and Lows",
+      text: `Recomendaciones — ${prettyReportName(selected.name)}`,
+      fallbackDownload,
+    });
   } catch (e) {
-    showToast(url);
+    // Fetch bloqueado (CORS, red) o fallo al leer el PDF: igual que arriba, preferimos
+    // descargar el PDF real antes que compartir un simple enlace.
+    fallbackDownload();
+    showToast("Tu navegador no permite compartir el PDF directamente: se ha descargado para que lo compartas tú.");
   }
 }
 
@@ -496,14 +542,14 @@ function init(recFiles) {
   });
 
   $("downloadPdf").addEventListener("click", downloadPdf);
-  $("shareView").addEventListener("click", shareView);
+  $("shareView").addEventListener("click", shareHighsLowsPdf);
 
   setupRecommendationsView(recFiles, true);
   $("recSelect").addEventListener("change", () => {
     showReport($("recSelect").value);
     updateUrl();
   });
-  $("recShare").addEventListener("click", shareView);
+  $("recShare").addEventListener("click", shareRecommendationPdf);
 
   const requestedView = params.get("view") === "recomendaciones" ? "recomendaciones" : "highs-lows";
   switchView(requestedView);
