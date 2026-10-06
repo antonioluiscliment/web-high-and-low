@@ -26,6 +26,7 @@
   <ul class="menu-list">
     <li><a href="#" class="menu-item active" data-view="highs-lows">Highs and Lows</a></li>
     <li><a href="#" class="menu-item" data-view="recomendaciones">Recomendaciones</a></li>
+    <li><a href="#" class="menu-item" data-view="graficos">Gráficos de TradingView recomendados</a></li>
   </ul>
 </nav>
 <div id="menuOverlay" class="menu-overlay"></div>
@@ -114,6 +115,26 @@
       </div>
       <div class="rec-frame-wrap">
         <iframe id="recFrame" class="rec-frame" title="Informe del agente" src="" loading="lazy"></iframe>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-graficos" class="view" hidden>
+    <div class="panel filters-panel">
+      <div class="filter-row">
+        <label for="graficoSelect">Gráfico</label>
+        <select id="graficoSelect"></select>
+      </div>
+      <p id="graficoEmpty" class="result-count" hidden>Todavía no hay ningún gráfico guardado en la carpeta GRAFICOS.</p>
+    </div>
+
+    <div class="panel table-panel" id="graficoPanel" hidden>
+      <div class="table-toolbar">
+        <a id="graficoDownload" class="btn btn-primary" href="#" download>Descargar imagen</a>
+        <button id="graficoShare" class="btn btn-primary">Compartir</button>
+      </div>
+      <div class="img-frame-wrap">
+        <img id="graficoImg" class="grafico-img" alt="Gráfico de TradingView" src="">
       </div>
     </div>
   </section>
