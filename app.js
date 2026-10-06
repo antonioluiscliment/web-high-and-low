@@ -48,6 +48,7 @@ let bounds = {};      // { field: {min, max} } for the current sheet
 let defaults = {};    // default (least restrictive) slider value per field
 let currentView = "highs-lows";
 let REC_FILES = [];   // [{name, id}] — informes "Agente..." de la carpeta PDF de BARRONS
+let GRAFICOS_FILES = []; // [{name, id}] — capturas de TradingView de la carpeta GRAFICOS de BARRONS
 
 function $(id) { return document.getElementById(id); }
 
@@ -162,12 +163,37 @@ function prettyReportName(name) {
 
 function driveEmbedUrl(id) { return `https://drive.google.com/file/d/${id}/preview`; }
 function driveDownloadUrl(id) { return `https://drive.google.com/uc?export=download&id=${id}`; }
+function driveImageUrl(id) { return `https://drive.google.com/thumbnail?id=${id}&sz=w1600`; }
 
 function showReport(id) {
   if (!id) return;
   $("recFrame").src = driveEmbedUrl(id);
   $("recDownload").href = driveDownloadUrl(id);
   $("recPanel").hidden = false;
+}
+
+// --- Vista "Gráficos de TradingView recomendados": capturas de la carpeta GRAFICOS de
+// BARRONS en Drive ---
+// graficos-config.json es un manifiesto con el mismo patrón que recommendations-config.json
+// y sheets-config.json: lista las imágenes de esa carpeta como {name, id}, porque una app
+// estática sin backend no puede listar el contenido de una carpeta de Drive en vivo. Hay que
+// añadir una entrada cada vez que se guarde una captura nueva. La carpeta GRAFICOS está
+// compartida como "cualquiera con el enlace, lector", así que estos ids se pueden incrustar
+// sin iniciar sesión.
+async function loadGraficos() {
+  try {
+    const config = await fetch("graficos-config.json").then(r => (r.ok ? r.json() : null));
+    return (config && Array.isArray(config.files)) ? config.files : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function showGrafico(id) {
+  if (!id) return;
+  $("graficoImg").src = driveImageUrl(id);
+  $("graficoDownload").href = driveDownloadUrl(id);
+  $("graficoPanel").hidden = false;
 }
 
 function setupRecommendationsView(files, applyFromParams) {
@@ -201,6 +227,39 @@ function setupRecommendationsView(files, applyFromParams) {
   }
   sel.value = selectedId;
   showReport(selectedId);
+}
+
+function setupGraficosView(files, applyFromParams) {
+  GRAFICOS_FILES = files || [];
+  const sel = $("graficoSelect");
+  const empty = $("graficoEmpty");
+  const panel = $("graficoPanel");
+  sel.innerHTML = "";
+
+  if (GRAFICOS_FILES.length === 0) {
+    empty.hidden = false;
+    panel.hidden = true;
+    sel.hidden = true;
+    return;
+  }
+  empty.hidden = true;
+  sel.hidden = false;
+
+  GRAFICOS_FILES.forEach(f => {
+    const opt = document.createElement("option");
+    opt.value = f.id;
+    opt.textContent = prettyReportName(f.name);
+    sel.appendChild(opt);
+  });
+
+  let selectedId = GRAFICOS_FILES[0].id;
+  if (applyFromParams) {
+    const p = new URLSearchParams(location.search);
+    const raw = p.get("grafico");
+    if (raw && GRAFICOS_FILES.some(f => f.id === raw)) selectedId = raw;
+  }
+  sel.value = selectedId;
+  showGrafico(selectedId);
 }
 
 function computeBounds(rows, field) {
@@ -339,6 +398,9 @@ function updateUrl() {
   if (currentView === "recomendaciones") {
     const sel = $("recSelect");
     if (sel && sel.value) p.set("report", sel.value);
+  } else if (currentView === "graficos") {
+    const sel = $("graficoSelect");
+    if (sel && sel.value) p.set("grafico", sel.value);
   } else {
     p.set("sheet", currentSheet);
     FILTERS.forEach(f => {
@@ -456,6 +518,33 @@ async function shareRecommendationPdf() {
   }
 }
 
+// Comparte la imagen (captura de TradingView) seleccionada, no un enlace — mismo patrón que
+// shareRecommendationPdf(): se descarga el fichero real de Drive, se envuelve en un File y se
+// comparte vía sharePdfFile() (el nombre viene de cuando solo se usaba para PDFs, pero funciona
+// igual para cualquier tipo de fichero).
+async function shareGraficoImage() {
+  const selected = GRAFICOS_FILES.find(f => f.id === $("graficoSelect").value);
+  if (!selected) return;
+  const filename = `${prettyReportName(selected.name)}.jpg`;
+  const fallbackDownload = () => { window.location.href = driveDownloadUrl(selected.id); };
+  try {
+    const resp = await fetch(driveDownloadUrl(selected.id));
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const blob = await resp.blob();
+    const file = new File([blob], filename, { type: "image/jpeg" });
+    await sharePdfFile(file, {
+      title: "Análisis de Highs and Lows",
+      text: `Gráfico de TradingView — ${prettyReportName(selected.name)}`,
+      fallbackDownload,
+    });
+  } catch (e) {
+    // Fetch bloqueado (CORS, red) o fallo al leer la imagen: igual que con los PDF, preferimos
+    // descargar el fichero real antes que compartir un simple enlace.
+    fallbackDownload();
+    showToast("Tu navegador no permite compartir la imagen directamente: se ha descargado para que la compartas tú.");
+  }
+}
+
 function setupMenu() {
   const menu = $("sideMenu");
   const overlay = $("menuOverlay");
@@ -497,7 +586,7 @@ function setupHeaderHints() {
   });
 }
 
-function init(recFiles) {
+function init(recFiles, graficosFiles) {
   setupMenu();
   setupHeaderHints();
 
@@ -551,12 +640,22 @@ function init(recFiles) {
   });
   $("recShare").addEventListener("click", shareRecommendationPdf);
 
-  const requestedView = params.get("view") === "recomendaciones" ? "recomendaciones" : "highs-lows";
+  setupGraficosView(graficosFiles, true);
+  $("graficoSelect").addEventListener("change", () => {
+    showGrafico($("graficoSelect").value);
+    updateUrl();
+  });
+  $("graficoShare").addEventListener("click", shareGraficoImage);
+
+  const requestedViewParam = params.get("view");
+  const requestedView = (requestedViewParam === "recomendaciones" || requestedViewParam === "graficos")
+    ? requestedViewParam
+    : "highs-lows";
   switchView(requestedView);
 }
 
-Promise.all([loadData(), loadTickerNames(), loadRecommendations()])
-  .then(([json, names, recFiles]) => { DATA = json; TICKER_NAMES = names; init(recFiles); })
+Promise.all([loadData(), loadTickerNames(), loadRecommendations(), loadGraficos()])
+  .then(([json, names, recFiles, graficosFiles]) => { DATA = json; TICKER_NAMES = names; init(recFiles, graficosFiles); })
   .catch(err => {
     document.body.innerHTML = `<p style="padding:40px;font-family:sans-serif;color:#b00">
       No se pudieron cargar los datos (sheets-config.json o alguna Google Sheet). ${err}</p>`;
