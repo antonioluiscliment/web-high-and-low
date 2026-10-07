@@ -1,8 +1,11 @@
 {
-  "generated_at": "2026-10-06",
+  "generated_at": "2026-10-07",
   "files": [
-    { "name": "ALNT 20261006", "id": "1ceXnMAxja26oQBeeb-clFT3_Rru-f5JD" },
-    { "name": "GMAB 20261006", "id": "11cbEs4MuhV4LrzqZp8RtMQrIFzwcPliJ" },
-    { "name": "NVDA 20261006", "id": "129C1P6TwDVqv7lT9rIxeIO5XBkjK1f3C" }
+    { "name": "ALLIENT 20261006", "id": "1ceXnMAxja26oQBeeb-clFT3_Rru-f5JD" },
+    { "name": "ALLIENT PER", "id": "1uY8F5wEl9oKdGdc5CgnMOOF5uAM-_hr-" },
+    { "name": "GENMAB 20261006", "id": "11cbEs4MuhV4LrzqZp8RtMQrIFzwcPliJ" },
+    { "name": "GENMAB PER", "id": "1X9fQLwJbm8eJmqiBbxs6kFvrvaL3dW4C" },
+    { "name": "NVDA 20261006", "id": "129C1P6TwDVqv7lT9rIxeIO5XBkjK1f3C" },
+    { "name": "NVDA PER", "id": "1DydrJCeTwaCGYN0VgxruZxTpKsXK6mG6" }
   ]
 }
