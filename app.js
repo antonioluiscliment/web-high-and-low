@@ -279,10 +279,23 @@ function renderTop25Tables(entries) {
   fundPanel.hidden = false;
 }
 
+// Cuando la ronda seleccionada ya tiene datos preparados (Top 25 + fundamentales), el PDF
+// embebido deja de aportar nada que esas dos tablas no muestren ya, así que se oculta el
+// visor (el iframe) para no duplicar la información — pero se deja el resto del panel
+// (botones "Descargar PDF" y "Compartir") siempre visible, porque el PDF en sí sigue
+// teniendo contenido que las tablas no recogen (el cuaderno, el comentario de evolución,
+// etc.). Para rondas sin datos preparados (dataFile ausente, o el fetch falla) el iframe
+// sigue siendo la única forma de ver el informe, así que se muestra como antes.
+function setPdfFrameVisible(visible) {
+  const wrap = $("recFrameWrap");
+  if (wrap) wrap.hidden = !visible;
+}
+
 async function updateTop25ForSelected(id) {
   const selected = REC_FILES.find(f => f.id === id);
   const entries = await loadTop25Data(selected && selected.dataFile);
   renderTop25Tables(entries);
+  setPdfFrameVisible(!entries || entries.length === 0);
 }
 
 // --- Vista "Gráficos de TradingView recomendados": capturas de la carpeta GRAFICOS de
