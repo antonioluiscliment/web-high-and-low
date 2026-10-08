@@ -286,6 +286,13 @@ tbody tr:hover { background: #f8fafc; }
   padding: 28px;
 }
 
+.subpanel-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin: 0 0 12px;
+}
+
 .rec-frame-wrap {
   border: 1px solid var(--border);
   border-radius: 8px;
