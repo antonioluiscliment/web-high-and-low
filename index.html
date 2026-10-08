@@ -76,27 +76,27 @@
     <div class="panel table-panel">
       <div class="table-toolbar">
         <button id="downloadPdf" class="btn btn-primary">Descargar PDF</button>
-        <button id="shareView" class="btn btn-primary">Compartir</button>
-      </div>
-      <div class="table-scroll">
-        <table id="resultsTable">
-          <thead>
-            <tr>
-              <th data-col="#" class="col-num">#</th>
-              <th data-col="Ticker">Ticker</th>
-              <th data-col="V">V</th>
-              <th data-col="U">U</th>
-              <th data-col="B">B</th>
-              <th data-col="N">N</th>
-              <th data-col="P">P</th>
-              <th data-col="PU">PU</th>
-              <th data-col="PB">PB</th>
-            </tr>
-          </thead>
-          <tbody id="resultsBody"></tbody>
-        </table>
-      </div>
+      <button id="shareView" class="btn btn-primary">Compartir</button>
     </div>
+    <div class="table-scroll">
+      <table id="resultsTable">
+        <thead>
+          <tr>
+            <th data-col="#" class="col-num">#</th>
+            <th data-col="Ticker">Ticker</th>
+            <th data-col="V">V</th>
+            <th data-col="U">U</th>
+            <th data-col="B">B</th>
+            <th data-col="N">N</th>
+            <th data-col="P">P</th>
+            <th data-col="PU">PU</th>
+            <th data-col="PB">PB</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+    </div>
+  </div>
   </section>
 
   <section id="view-recomendaciones" class="view" hidden>
@@ -115,6 +115,48 @@
       </div>
       <div class="rec-frame-wrap">
         <iframe id="recFrame" class="rec-frame" title="Informe del agente" src="" loading="lazy"></iframe>
+      </div>
+    </div>
+
+    <div class="panel table-panel" id="recTop25Panel" hidden>
+      <h3 class="subpanel-title">Top 25 candidatas (ranking del agente)</h3>
+      <div class="table-scroll">
+        <table id="recTop25Table">
+          <thead>
+            <tr>
+              <th class="col-num">#</th>
+              <th>Ticker</th>
+              <th>Puntuación</th>
+              <th>Valoración</th>
+              <th>Situación</th>
+            </tr>
+          </thead>
+          <tbody id="recTop25Body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel table-panel" id="recFundamentalesPanel" hidden>
+      <h3 class="subpanel-title">Datos fundamentales</h3>
+      <div class="table-scroll">
+        <table id="recFundamentalesTable">
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Rating S&amp;P</th>
+              <th>Inv. institucionales</th>
+              <th>Participación inst.</th>
+              <th>Años dividendo</th>
+              <th>Rent. dividendo</th>
+              <th>PER</th>
+              <th>P/VC</th>
+              <th>Cotización</th>
+              <th>Máx. 52 sem</th>
+              <th>Mín. 52 sem</th>
+            </tr>
+          </thead>
+          <tbody id="recFundamentalesBody"></tbody>
+        </table>
       </div>
     </div>
   </section>
