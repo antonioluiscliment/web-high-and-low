@@ -161,6 +161,20 @@ function prettyReportName(name) {
   return String(name || "").replace(/_/g, " ");
 }
 
+// Nombre abreviado para el desplegable de informes: "Agente_Highs_Nasdaq_Ronda1_2026-09-21"
+// -> "Highs Nasdaq R1 09-21". Si el nombre no sigue ese patrón (informes antiguos o con otro
+// formato), se cae de vuelta al nombre completo de prettyReportName(). Esta función solo se usa
+// para el texto del desplegable; la descarga y el "compartir" siguen usando prettyReportName()
+// para el nombre del fichero.
+function abbreviateReportName(name) {
+  const m = String(name || "").match(/Agente[_\s]+Highs[_\s]+Nasdaq[_\s]+Ronda(\d+)[_\s]+(\d{4})-(\d{2})-(\d{2})/i);
+  if (m) {
+    const [, ronda, , mm, dd] = m;
+    return `Highs Nasdaq R${ronda} ${mm}-${dd}`;
+  }
+  return prettyReportName(name);
+}
+
 function driveEmbedUrl(id) { return `https://drive.google.com/file/d/${id}/preview`; }
 function driveDownloadUrl(id) { return `https://drive.google.com/uc?export=download&id=${id}`; }
 function driveImageUrl(id) { return `https://drive.google.com/thumbnail?id=${id}&sz=w1600`; }
@@ -170,6 +184,98 @@ function showReport(id) {
   $("recFrame").src = driveEmbedUrl(id);
   $("recDownload").href = driveDownloadUrl(id);
   $("recPanel").hidden = false;
+}
+
+// --- Top 25 + datos fundamentales de la ronda seleccionada -----------------------------
+// Cada entrada de recommendations-config.json puede traer un "dataId" opcional: el id de
+// Drive de un JSON con el detalle de esa ronda (ausente o null en informes antiguos, para
+// los que todavía no se ha preparado ese fichero — en ese caso las dos tablas de abajo se
+// ocultan sin más). Formato esperado del fichero apuntado por dataId:
+//   {
+//     "generated_at": "YYYY-MM-DD",
+//     "top25": [
+//       {
+//         "rank": 1, "ticker": "AAA", "puntuacion": 3.2, "valoracion": "Compra fuerte",
+//         "situacion": "Incorporación reciente",
+//         "spRating": "n/s", "institutionalInvestors": "n/s", "institutionalStake": "n/s",
+//         "dividendYears": "n/s", "dividendYield": "n/s", "per": "n/s", "pbRatio": "n/s",
+//         "price": "n/s", "high52w": "n/s", "low52w": "n/s"
+//       },
+//       ... hasta 25 entradas
+//     ]
+//   }
+// Los 9 campos de datos fundamentales (todos salvo el rating de S&P, que viene de la web de
+// S&P) se buscan en Yahoo Finance; cuando no se encuentra un dato se deja el texto "n/s"
+// (no disponible por ahora) en vez de dejarlo en blanco o inventar un valor.
+async function loadTop25Data(dataId) {
+  if (!dataId) return null;
+  try {
+    const resp = await fetch(driveDownloadUrl(dataId));
+    if (!resp.ok) return null;
+    const json = await resp.json();
+    return (json && Array.isArray(json.top25)) ? json.top25 : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function renderTop25Tables(entries) {
+  const top25Panel = $("recTop25Panel");
+  const fundPanel = $("recFundamentalesPanel");
+  const top25Body = $("recTop25Body");
+  const fundBody = $("recFundamentalesBody");
+  if (!top25Panel || !fundPanel || !top25Body || !fundBody) return;
+
+  if (!entries || entries.length === 0) {
+    top25Panel.hidden = true;
+    fundPanel.hidden = true;
+    top25Body.innerHTML = "";
+    fundBody.innerHTML = "";
+    return;
+  }
+
+  top25Body.innerHTML = "";
+  fundBody.innerHTML = "";
+  entries.slice(0, 25).forEach(e => {
+    const ticker = e.ticker ?? "";
+
+    const tr1 = document.createElement("tr");
+    tr1.innerHTML = `
+      <td class="col-num">${e.rank ?? ""}</td>
+      <td class="col-ticker" data-ticker="${ticker}">${ticker || "—"}</td>
+      <td>${fmt(e.puntuacion, 2)}</td>
+      <td>${e.valoracion ?? "—"}</td>
+      <td>${e.situacion ?? "—"}</td>
+    `;
+    bindPressHint(tr1.querySelector(".col-ticker"), () => tickerHintText(ticker));
+    top25Body.appendChild(tr1);
+
+    const tr2 = document.createElement("tr");
+    tr2.innerHTML = `
+      <td class="col-ticker" data-ticker="${ticker}">${ticker || "—"}</td>
+      <td>${e.spRating ?? "n/s"}</td>
+      <td>${e.institutionalInvestors ?? "n/s"}</td>
+      <td>${e.institutionalStake ?? "n/s"}</td>
+      <td>${e.dividendYears ?? "n/s"}</td>
+      <td>${e.dividendYield ?? "n/s"}</td>
+      <td>${e.per ?? "n/s"}</td>
+      <td>${e.pbRatio ?? "n/s"}</td>
+      <td>${e.price ?? "n/s"}</td>
+      <td>${e.high52w ?? "n/s"}</td>
+      <td>${e.low52w ?? "n/s"}</td>
+    `;
+    bindPressHint(tr2.querySelector(".col-ticker"), () => tickerHintText(ticker));
+    fundBody.appendChild(tr2);
+  });
+
+  top25Panel.hidden = false;
+  fundPanel.hidden = false;
+}
+
+async function updateTop25ForSelected(id) {
+  const selected = REC_FILES.find(f => f.id === id);
+  const entries = await loadTop25Data(selected && selected.dataId);
+  renderTop25Tables(entries);
 }
 
 // --- Vista "Gráficos de TradingView recomendados": capturas de la carpeta GRAFICOS de
@@ -215,11 +321,12 @@ function setupRecommendationsView(files, applyFromParams) {
   REC_FILES.forEach(f => {
     const opt = document.createElement("option");
     opt.value = f.id;
-    opt.textContent = prettyReportName(f.name);
+    opt.textContent = abbreviateReportName(f.name);
     sel.appendChild(opt);
   });
 
-  let selectedId = REC_FILES[0].id;
+  // Por defecto se selecciona el último informe (la ronda más reciente), no el primero.
+  let selectedId = REC_FILES[REC_FILES.length - 1].id;
   if (applyFromParams) {
     const p = new URLSearchParams(location.search);
     const raw = p.get("report");
@@ -227,6 +334,7 @@ function setupRecommendationsView(files, applyFromParams) {
   }
   sel.value = selectedId;
   showReport(selectedId);
+  updateTop25ForSelected(selectedId);
 }
 
 function setupGraficosView(files, applyFromParams) {
@@ -636,6 +744,7 @@ function init(recFiles, graficosFiles) {
   setupRecommendationsView(recFiles, true);
   $("recSelect").addEventListener("change", () => {
     showReport($("recSelect").value);
+    updateTop25ForSelected($("recSelect").value);
     updateUrl();
   });
   $("recShare").addEventListener("click", shareRecommendationPdf);
