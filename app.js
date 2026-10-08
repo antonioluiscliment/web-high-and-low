@@ -187,10 +187,17 @@ function showReport(id) {
 }
 
 // --- Top 25 + datos fundamentales de la ronda seleccionada -----------------------------
-// Cada entrada de recommendations-config.json puede traer un "dataId" opcional: el id de
-// Drive de un JSON con el detalle de esa ronda (ausente o null en informes antiguos, para
-// los que todavía no se ha preparado ese fichero — en ese caso las dos tablas de abajo se
-// ocultan sin más). Formato esperado del fichero apuntado por dataId:
+// Cada entrada de recommendations-config.json puede traer un "dataFile" opcional: el nombre
+// de un fichero JSON con el detalle de esa ronda, desplegado junto a index.html/app.js en el
+// propio repositorio de GitHub (ausente o null en informes antiguos, para los que todavía no
+// se ha preparado ese fichero — en ese caso las dos tablas de abajo se ocultan sin más). Se
+// lee con una ruta relativa (fetch(dataFile)), igual que sheets-config.json o
+// recommendations-config.json — IMPORTANTE: no se lee de Drive vía driveDownloadUrl(), porque
+// el endpoint de descarga de Drive no admite fetch() entre dominios (CORS) y la lectura falla
+// en silencio (detectado el 8/oct/2026 tras probarlo en la web real: ni la tabla de candidatas
+// ni la de datos fundamentales llegaban a mostrarse). Por eso dataFile tiene que ser un
+// fichero que Antonio arrastre a su repo de GitHub junto con el resto, no solo subido a Drive.
+// Formato esperado del fichero apuntado por dataFile:
 //   {
 //     "generated_at": "YYYY-MM-DD",
 //     "top25": [
@@ -207,10 +214,10 @@ function showReport(id) {
 // Los 9 campos de datos fundamentales (todos salvo el rating de S&P, que viene de la web de
 // S&P) se buscan en Yahoo Finance; cuando no se encuentra un dato se deja el texto "n/s"
 // (no disponible por ahora) en vez de dejarlo en blanco o inventar un valor.
-async function loadTop25Data(dataId) {
-  if (!dataId) return null;
+async function loadTop25Data(dataFile) {
+  if (!dataFile) return null;
   try {
-    const resp = await fetch(driveDownloadUrl(dataId));
+    const resp = await fetch(dataFile);
     if (!resp.ok) return null;
     const json = await resp.json();
     return (json && Array.isArray(json.top25)) ? json.top25 : null;
@@ -274,7 +281,7 @@ function renderTop25Tables(entries) {
 
 async function updateTop25ForSelected(id) {
   const selected = REC_FILES.find(f => f.id === id);
-  const entries = await loadTop25Data(selected && selected.dataId);
+  const entries = await loadTop25Data(selected && selected.dataFile);
   renderTop25Tables(entries);
 }
 
