@@ -1,11 +1,15 @@
 {
-  "generated_at": "2026-10-07",
+  "generated_at": "2026-10-10",
   "files": [
     { "name": "ALLIENT 20261006", "id": "1ceXnMAxja26oQBeeb-clFT3_Rru-f5JD" },
     { "name": "ALLIENT PER", "id": "1uY8F5wEl9oKdGdc5CgnMOOF5uAM-_hr-" },
     { "name": "GENMAB 20261006", "id": "11cbEs4MuhV4LrzqZp8RtMQrIFzwcPliJ" },
     { "name": "GENMAB PER", "id": "1X9fQLwJbm8eJmqiBbxs6kFvrvaL3dW4C" },
+    { "name": "NUTEX 2026 10 10", "id": "1eRmzWuHsegc46GcMlFDzvr_cv3DBFb8h" },
+    { "name": "NUTEX PER", "id": "1zbRUIY9593GnahmUD_gvLThWRRwRRu4N" },
     { "name": "NVDA 20261006", "id": "129C1P6TwDVqv7lT9rIxeIO5XBkjK1f3C" },
-    { "name": "NVDA PER", "id": "1DydrJCeTwaCGYN0VgxruZxTpKsXK6mG6" }
+    { "name": "NVDA PER", "id": "1DydrJCeTwaCGYN0VgxruZxTpKsXK6mG6" },
+    { "name": "XP 2026 10 10", "id": "1TSYUADO1I2IQdsoCUJC4RhUXLicoF_je" },
+    { "name": "XP PER", "id": "1HhYlk5MlM-PHBi6ludJFHqBsr9s97rIE" }
   ]
 }
