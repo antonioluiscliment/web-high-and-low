@@ -1,27 +1,26 @@
-# Análisis de Highs and Lows
+# Nuevos Máximos (Highs)
 
 Aplicación web estática (sin backend ni build) que visualiza en vivo los
-datos de las 6 Google Sheets del proyecto BARRONS, con filtros y
+datos de las 3 Google Sheets del proyecto BARRONS, con filtros y
 exportación a PDF.
 
 ## Contenido del repositorio
 
 | Fichero | Qué es |
 |---|---|
-| `index.html` | Estructura de la página (menú hamburguesa + vista "Highs and Lows"). |
+| `index.html` | Estructura de la página (menú hamburguesa + vista "Nuevos Máximos"). |
 | `styles.css` | Estilos. |
 | `app.js` | Lógica: carga de datos desde Google Sheets, filtros, tabla, PDF y compartir. |
-| `sheets-config.json` | Los 6 identificadores de Google Sheets actuales, uno por hoja. |
+| `sheets-config.json` | Los 3 identificadores de Google Sheets actuales, uno por hoja. |
 | `ticker-names.json` | Nombre abreviado (estilo Barron's) de cada ticker, para el aviso al mantener pulsado. No cubre el 100% de los tickers históricos. |
 | `recommendations-config.json` | Lista de los informes "Agente..." (ver vista "Recomendaciones"), como `{name, id}` — id del fichero PDF en Drive. |
 
 No hay paso de compilación: es HTML/CSS/JS plano, así que Vercel lo sirve
 directamente como sitio estático (no hace falta ningún `vercel.json`).
 
-## Primera opción del menú: "Highs and Lows"
+## Primera opción del menú: "Nuevos Máximos"
 
-- Selector de hoja (las 6 hojas: NYSE American Lows/High, NASDAQ Lows/High,
-  NYSE Lows/High).
+- Selector de hoja (las 3 hojas: NASDAQ High, NYSE High, NYSE American High).
 - Filtros: para V, U y B, dos casillas de número entero (mínimo y
   máximo) por campo. Por defecto cada casilla arranca con el rango real
   completo de esa hoja (por ejemplo V mínimo 1 y V máximo 6 si esos son
@@ -33,7 +32,7 @@ directamente como sitio estático (no hace falta ningún `vercel.json`).
   resultado, ya que no se puede verificar que esté dentro del rango.
 - Tabla con una fila numerada por valor (columna `#`), columnas: Ticker, V,
   U, B, N, P, PU, PB.
-- Mantener pulsado un ticker muestra el nombre de la empresa (desde
+- Mantener pulsado un ticker muestra el nombre de la empresa (
   `ticker-names.json`); mantener pulsada una cabecera de columna muestra
   una breve explicación de qué mide esa columna. Ambos usan una barra fija
   bajo la cabecera (`#hintBar`) y funcionan con ratón, dedo o lápiz.
@@ -57,20 +56,20 @@ directamente como sitio estático (no hace falta ningún `vercel.json`).
   quedan fuera de esta lista).
 - El informe elegido se incrusta tal cual en la página, con el visor nativo
   de Google Drive (`https://drive.google.com/file/d/<ID>/preview` en un
-  `<iframe>`). Debajo, los mismos dos botones que en "Highs and Lows":
+  `<iframe>`). Debajo, los mismos dos botones que en "Nuevos Máximos":
   **Descargar PDF** (descarga directa del PDF elegido,
   `.../uc?export=download&id=<ID>`) y **Compartir** (share nativo o,
   si no está disponible, copia al portapapeles un enlace que reabre
   exactamente ese mismo informe).
 - Si `recommendations-config.json` está vacío (no hay ningún informe
   "Agente..." todavía), se muestra un aviso en vez del selector.
-- Igual que en "Highs and Lows", la vista activa y el informe elegido
+- Igual que en "Nuevos Máximos", la vista activa y el informe elegido
   quedan codificados en la URL (`?view=recomendaciones&report=<ID>`), así
   que un enlace copiado reabre exactamente el mismo informe.
 
 ## De dónde vienen los datos
 
-- Cada una de las 6 hojas de cálculo vive en la carpeta "Google Sheets"
+- Cada una de las 3 hojas de cálculo vive en la carpeta "Google Sheets"
   dentro de BARRONS en Google Drive, y se recrea semanalmente (se archiva
   la anterior y se crea una nueva con los datos actualizados).
 - Esa carpeta está compartida como "Cualquiera con el enlace, lector", y
@@ -96,8 +95,8 @@ directamente como sitio estático (no hace falta ningún `vercel.json`).
 
 Como los datos se leen en vivo de Google Sheets, no hay que regenerar ni
 subir ningún fichero de datos. Lo único que cambia cada semana son los
-identificadores de las 6 hojas (se recrean con un id nuevo): hay que
-editar `sheets-config.json` con los 6 ids actuales y subir ese único
+identificadores de las 3 hojas (se recrean con un id nuevo): hay que
+editar `sheets-config.json` con los 3 ids actuales y subir ese único
 fichero al repositorio de GitHub — Vercel redespliega automáticamente.
 No hace falta tocar `index.html`, `app.js` ni `styles.css`.
 
