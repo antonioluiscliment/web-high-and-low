@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-17",
+  "generated_at": "2026-10-24",
   "files": [
     { "name": "ALLIENT 20261006", "id": "1ceXnMAxja26oQBeeb-clFT3_Rru-f5JD" },
     { "name": "ALLIENT PER", "id": "1uY8F5wEl9oKdGdc5CgnMOOF5uAM-_hr-" },
@@ -12,6 +12,8 @@
     { "name": "XP 2026 10 10", "id": "1TSYUADO1I2IQdsoCUJC4RhUXLicoF_je" },
     { "name": "XP PER", "id": "1HhYlk5MlM-PHBi6ludJFHqBsr9s97rIE" },
     { "name": "DOCEBO 20261017", "id": "1ezTMWC_IDKfs7CFGEElOdfo3H30wDtwT" },
-    { "name": "DOCEBO PER", "id": "1ooGO3XywprRBWfNtsTJqdTGpxCuIBJ1k" }
+    { "name": "DOCEBO PER", "id": "1ooGO3XywprRBWfNtsTJqdTGpxCuIBJ1k" },
+    { "name": "HURON 2026 10 24", "id": "1uiqJWt9R5LdIjXoR3HjRBdLGpd-merjS" },
+    { "name": "HURON PER", "id": "1QthAa6YpgWylr_KH5jOxe-uC9KAxfMdr" }
   ]
 }
