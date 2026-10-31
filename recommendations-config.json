@@ -1,9 +1,30 @@
 {
-  "generated_at": "2026-10-26",
+  "generated_at": "2026-11-02",
   "files": [
-    {"name": "Agente_Highs_Nasdaq_Ronda3_2026-10-05", "id": "1K1WNB0SiolipwEYo30BFVHR4RzkCsubG", "dataFile": "ronda3-data.json"},
-    {"name": "Agente_Highs_Nasdaq_Ronda4_2026-10-12", "id": "1G2f-U672fa-WKHLjvDSJZhjQCeGaQwBn", "dataFile": "ronda4-data.json"},
-    {"name": "Agente_Highs_Nasdaq_Ronda5_2026-10-19", "id": "1ka9ReGUMC6kziJCd9IMLuO939deZ4ovZ", "dataFile": "ronda5-data.json"},
-    {"name": "Agente_Highs_Nasdaq_Ronda6_2026-10-26", "id": "1B4yk6AhO7VVglRgIc6WUSyr7VkdcbzNb", "dataFile": "ronda6-data.json"}
+    {
+      "name": "Agente_Highs_Nasdaq_Ronda3_2026-10-05",
+      "id": "1K1WNB0SiolipwEYo30BFVHR4RzkCsubG",
+      "dataFile": "ronda3-data.json"
+    },
+    {
+      "name": "Agente_Highs_Nasdaq_Ronda4_2026-10-12",
+      "id": "1G2f-U672fa-WKHLjvDSJZhjQCeGaQwBn",
+      "dataFile": "ronda4-data.json"
+    },
+    {
+      "name": "Agente_Highs_Nasdaq_Ronda5_2026-10-19",
+      "id": "1ka9ReGUMC6kziJCd9IMLuO939deZ4ovZ",
+      "dataFile": "ronda5-data.json"
+    },
+    {
+      "name": "Agente_Highs_Nasdaq_Ronda6_2026-10-26",
+      "id": "1B4yk6AhO7VVglRgIc6WUSyr7VkdcbzNb",
+      "dataFile": "ronda6-data.json"
+    },
+    {
+      "name": "Agente_Highs_Nasdaq_Ronda7_2026-11-02",
+      "id": "115XlHOPUZjfIMXP2Z9ePoiWmW7VV7z4S",
+      "dataFile": "ronda7-data.json"
+    }
   ]
 }
