@@ -1,0 +1,15 @@
+{
+  "fecha_ajuste": "2026-11-01",
+  "datos_hasta": "2026/11/02",
+  "semanas_objetivo": "2026/09/14 - 2026/11/02",
+  "observaciones": 2659,
+  "auc_validacion_rodante": 0.786,
+  "coef": {
+    "b": -2.0012,
+    "sem1": 1.9458,
+    "sem2": 0.1475,
+    "V": 0.1641,
+    "U": -0.3691,
+    "B": -0.1695
+  }
+}
