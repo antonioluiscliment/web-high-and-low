@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -28,6 +27,7 @@
     <li><a href="#" class="menu-item active" data-view="highs-lows">Nuevos Máximos</a></li>
     <li><a href="#" class="menu-item" data-view="recomendaciones">Recomendaciones</a></li>
     <li><a href="#" class="menu-item" data-view="graficos">Gráficos de TradingView recomendados</a></li>
+    <li><a href="#" class="menu-item" data-view="prevision">Previsión de Highs para la próxima semana</a></li>
   </ul>
 </nav>
 <div id="menuOverlay" class="menu-overlay"></div>
@@ -77,27 +77,27 @@
     <div class="panel table-panel">
       <div class="table-toolbar">
         <button id="downloadPdf" class="btn btn-primary">Descargar PDF</button>
-      <button id="shareView" class="btn btn-primary">Compartir</button>
+        <button id="shareView" class="btn btn-primary">Compartir</button>
+      </div>
+      <div class="table-scroll">
+        <table id="resultsTable">
+          <thead>
+            <tr>
+              <th data-col="#" class="col-num">#</th>
+              <th data-col="Ticker">Ticker</th>
+              <th data-col="V">V</th>
+              <th data-col="U">U</th>
+              <th data-col="B">B</th>
+              <th data-col="N">N</th>
+              <th data-col="P">P</th>
+              <th data-col="PU">PU</th>
+              <th data-col="PB">PB</th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
     </div>
-    <div class="table-scroll">
-      <table id="resultsTable">
-        <thead>
-          <tr>
-            <th data-col="#" class="col-num">#</th>
-            <th data-col="Ticker">Ticker</th>
-            <th data-col="V">V</th>
-            <th data-col="U">U</th>
-            <th data-col="B">B</th>
-            <th data-col="N">N</th>
-            <th data-col="P">P</th>
-            <th data-col="PU">PU</th>
-            <th data-col="PB">PB</th>
-          </tr>
-        </thead>
-        <tbody id="resultsBody"></tbody>
-      </table>
-    </div>
-  </div>
   </section>
 
   <section id="view-recomendaciones" class="view" hidden>
@@ -182,10 +182,42 @@
     </div>
   </section>
 
+  <section id="view-prevision" class="view" hidden>
+    <div class="panel table-panel">
+      <h3 class="subpanel-title">Previsión de Highs para la próxima semana — NASDAQ</h3>
+      <p id="prevSubtitle" class="result-count">Calculando previsión…</p>
+      <div class="table-toolbar">
+        <button id="prevDownload" class="btn btn-primary">Descargar PDF</button>
+        <button id="prevShare" class="btn btn-primary">Compartir</button>
+      </div>
+      <div class="table-scroll">
+        <table id="prevTable">
+          <thead>
+            <tr>
+              <th data-col="#" class="col-num">#</th>
+              <th data-col="Ticker">Ticker</th>
+              <th data-col="Prob">Prob. High</th>
+              <th data-col="V">V</th>
+              <th data-col="U">U</th>
+              <th data-col="B">B</th>
+            </tr>
+          </thead>
+          <tbody id="prevBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel" id="prevSummaryPanel" hidden>
+      <p id="prevTotal" class="subpanel-title"></p>
+      <p id="prevTotalDetail" class="result-count"></p>
+    </div>
+  </section>
+
 </main>
 
 <div id="toast" class="toast"></div>
 
 <script src="app.js"></script>
+<script src="prevision.js"></script>
 </body>
 </html>
