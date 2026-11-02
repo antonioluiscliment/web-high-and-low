@@ -1,4 +1,8 @@
-/* Previsión de Highs para la próxima semana (NASDAQ High)
+/* Previsión de Highs para la próxima semana (NASDAQ High, NYSE High o NYSE American High)
+ *
+ * El usuario elige la hoja en un desplegable. Se aplica el mismo modelo y los mismos
+ * coeficientes a las tres: se ajustó con NASDAQ y se validó sin reajustar sobre NYSE
+ * (AUC 0,81) y NYSE American (AUC 0,79) el 2026-11-02, una vez reconstruidas esas hojas.
  *
  * Vista independiente que se añade a la web sin modificar app.js: reutiliza sus funciones
  * globales (parseCsv, rowsToRecords, csvUrlFor, bindPressHint, tickerHintText, fmt,
@@ -39,10 +43,15 @@ async function loadPrevisionCoef() {
     }
   } catch (e) { /* se mantienen los coeficientes por defecto */ }
 }
-const PREV_SHEET = "NASDAQ High";
+const PREV_DEFAULT_SHEET = "NASDAQ High";
 const PREV_TOP = 40;
 
-let PREV_STATE = null; // { rows, top, expectedRegistered, newLastWeek, nextWeekLabel, lastWeekLabel }
+let PREV_STATE = null; // { sheet, rows, top, expectedRegistered, newLastWeek, nextWeekLabel, lastWeekLabel }
+let PREV_CONFIG = null;   // sheets-config.json
+const PREV_CACHE = {};    // hoja -> estado ya calculado (no se vuelve a leer al cambiar de hoja)
+
+// "NASDAQ High" -> "NASDAQ"; "NYSE American High" -> "NYSE American"
+function prevMarketLabel(sheetName) { return String(sheetName || "").replace(/\s*High\s*$/i, "").trim(); }
 
 function prevProbability(V, U, B) {
   const sem1 = U >= 1 ? 1 : 0;
@@ -96,7 +105,7 @@ function prevInt(x) { return Math.round(x).toLocaleString("es-ES"); }
 function prevSummaryText(s) {
   const total = s.expectedRegistered + s.newLastWeek;
   return {
-    main: `Total de Highs previstos en el Nasdaq${s.nextWeekLabel ? " para la semana del " + s.nextWeekLabel : ""}: ≈ ${prevInt(total)}`,
+    main: `Total de Highs previstos en ${prevMarketLabel(s.sheet)}${s.nextWeekLabel ? " para la semana del " + s.nextWeekLabel : ""}: ≈ ${prevInt(total)}`,
     detail: `${prevInt(s.expectedRegistered)} entre los ${s.rows.length} valores ya registrados en la hoja (suma de sus probabilidades) ` +
       `+ ≈ ${s.newLastWeek} incorporaciones nuevas, que el modelo no puede anticipar y se estiman iguales a las de la última semana` +
       `${s.lastWeekLabel ? " (" + s.lastWeekLabel + ")" : ""}. ` +
@@ -113,6 +122,7 @@ function renderPrevision() {
     $("prevSummaryPanel").hidden = true;
     return;
   }
+  $("prevTitle").textContent = `Previsión de Highs para la próxima semana — ${prevMarketLabel(s.sheet)}`;
   $("prevSubtitle").textContent = s.nextWeekLabel
     ? `Los ${s.top.length} valores con mayor probabilidad de marcar un nuevo máximo de 52 semanas la semana del ${s.nextWeekLabel} (datos hasta el ${s.lastWeekLabel}).`
     : `Los ${s.top.length} valores con mayor probabilidad de marcar un nuevo máximo de 52 semanas la próxima semana.`;
@@ -150,7 +160,7 @@ function buildPrevisionPdfDoc() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
   doc.setFontSize(14);
-  doc.text(`Previsión de Highs — NASDAQ${s.nextWeekLabel ? " — semana del " + s.nextWeekLabel : ""}`, 40, 40);
+  doc.text(`Previsión de Highs — ${prevMarketLabel(s.sheet)}${s.nextWeekLabel ? " — semana del " + s.nextWeekLabel : ""}`, 40, 40);
   doc.setFontSize(9);
   doc.text(`Datos hasta el ${s.lastWeekLabel || "—"} · Generado el ${new Date().toLocaleDateString("es-ES")} · Regresión logística (V, U, B y últimas 2 semanas)`, 40, 56);
   doc.autoTable({
@@ -167,7 +177,7 @@ function buildPrevisionPdfDoc() {
   doc.text(txt.main, 40, y);
   doc.setFontSize(8);
   doc.text(doc.splitTextToSize(txt.detail, 515), 40, y + 14);
-  const filename = `prevision-highs-nasdaq${s.nextWeekLabel ? "-" + s.nextWeekLabel.split("/").reverse().join("-") : ""}.pdf`;
+  const filename = `prevision-highs-${prevMarketLabel(s.sheet).toLowerCase().replace(/\s+/g, "-")}${s.nextWeekLabel ? "-" + s.nextWeekLabel.split("/").reverse().join("-") : ""}.pdf`;
   return { doc, filename };
 }
 
@@ -177,29 +187,62 @@ async function sharePrevisionPdf() {
   const file = new File([doc.output("blob")], filename, { type: "application/pdf" });
   await sharePdfFile(file, {
     title: "Previsión de Highs",
-    text: `Previsión de Highs NASDAQ${PREV_STATE.nextWeekLabel ? " — semana del " + PREV_STATE.nextWeekLabel : ""}`,
+    text: `Previsión de Highs ${prevMarketLabel(PREV_STATE.sheet)}${PREV_STATE.nextWeekLabel ? " — semana del " + PREV_STATE.nextWeekLabel : ""}`,
     fallbackDownload: () => doc.save(filename),
   });
 }
 
-async function loadPrevision() {
+async function loadPrevision(sheetName) {
   try {
     await loadPrevisionCoef();
-    const config = await fetch("sheets-config.json").then(r => r.json());
-    const name = config.sheets[PREV_SHEET] ? PREV_SHEET : Object.keys(config.sheets).find(n => /nasdaq/i.test(n));
-    if (!name) throw new Error("No se encuentra la hoja NASDAQ High en sheets-config.json");
-    const text = await fetch(csvUrlFor(config.sheets[name])).then(r => {
-      if (!r.ok) throw new Error(`No se pudo leer la hoja "${name}" (HTTP ${r.status})`);
-      return r.text();
-    });
-    const csvRows = parseCsv(text);
-    const labels = prevWeekLabels(csvRows[0]);
-    PREV_STATE = { ...computePrevision(prevRecords(csvRows)), nextWeekLabel: labels.next, lastWeekLabel: labels.last };
+    if (!PREV_CONFIG) PREV_CONFIG = await fetch("sheets-config.json").then(r => r.json());
+    const names = Object.keys(PREV_CONFIG.sheets);
+    const name = names.includes(sheetName) ? sheetName : (names.includes(PREV_DEFAULT_SHEET) ? PREV_DEFAULT_SHEET : names[0]);
+    if (!name) throw new Error("sheets-config.json no contiene ninguna hoja");
+    if (!PREV_CACHE[name]) {
+      $("prevSubtitle").textContent = "Calculando previsión…";
+      const text = await fetch(csvUrlFor(PREV_CONFIG.sheets[name])).then(r => {
+        if (!r.ok) throw new Error(`No se pudo leer la hoja "${name}" (HTTP ${r.status})`);
+        return r.text();
+      });
+      const csvRows = parseCsv(text);
+      const labels = prevWeekLabels(csvRows[0]);
+      PREV_CACHE[name] = { sheet: name, ...computePrevision(prevRecords(csvRows)), nextWeekLabel: labels.next, lastWeekLabel: labels.last };
+    }
+    PREV_STATE = PREV_CACHE[name];
   } catch (e) {
     PREV_STATE = null;
     $("prevSubtitle").textContent = `No se pudo calcular la previsión: ${e.message || e}`;
   }
   renderPrevision();
+}
+
+// Rellena el selector de hoja con las hojas de sheets-config.json (NASDAQ por defecto) y
+// recalcula la previsión al cambiar de hoja. La hoja elegida se refleja en la URL (?prevSheet=).
+async function setupPrevisionSheetSelect() {
+  const sel = $("prevSheetSelect");
+  try {
+    if (!PREV_CONFIG) PREV_CONFIG = await fetch("sheets-config.json").then(r => r.json());
+  } catch (e) { PREV_CONFIG = null; }
+  const names = PREV_CONFIG ? Object.keys(PREV_CONFIG.sheets) : [];
+  sel.innerHTML = "";
+  names.forEach(n => {
+    const opt = document.createElement("option");
+    opt.value = n; opt.textContent = prevMarketLabel(n);
+    sel.appendChild(opt);
+  });
+  const fromUrl = new URLSearchParams(location.search).get("prevSheet");
+  const initial = names.includes(fromUrl) ? fromUrl : (names.includes(PREV_DEFAULT_SHEET) ? PREV_DEFAULT_SHEET : names[0]);
+  if (initial) sel.value = initial;
+  sel.addEventListener("change", () => {
+    try {
+      const p = new URLSearchParams(location.search);
+      p.set("view", "prevision"); p.set("prevSheet", sel.value);
+      history.replaceState(null, "", `${location.pathname}?${p.toString()}`);
+    } catch (e) { /* sin cambios en la URL */ }
+    loadPrevision(sel.value);
+  });
+  return initial;
 }
 
 function setupPrevisionView() {
@@ -213,7 +256,7 @@ function setupPrevisionView() {
     doc.save(filename);
   });
   $("prevShare").addEventListener("click", sharePrevisionPdf);
-  loadPrevision();
+  setupPrevisionSheetSelect().then(initial => loadPrevision(initial));
 
   // app.js solo reconoce ?view=recomendaciones/graficos al arrancar; si el enlace pide esta
   // vista, se activa en cuanto app.js termina su propia inicialización (DATA cargado).
@@ -229,4 +272,4 @@ if (typeof document !== "undefined" && document.getElementById("view-prevision")
   setupPrevisionView();
 }
 
-if (typeof module !== "undefined") module.exports = { prevRecords, computePrevision, prevProbability, prevWeekLabels };
+if (typeof module !== "undefined") module.exports = { prevMarketLabel, prevRecords, computePrevision, prevProbability, prevWeekLabels };
