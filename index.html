@@ -184,7 +184,11 @@
 
   <section id="view-prevision" class="view" hidden>
     <div class="panel table-panel">
-      <h3 class="subpanel-title">Previsión de Highs para la próxima semana — NASDAQ</h3>
+      <h3 class="subpanel-title" id="prevTitle">Previsión de Highs para la próxima semana</h3>
+      <div class="filter-row">
+        <label for="prevSheetSelect">Hoja</label>
+        <select id="prevSheetSelect"></select>
+      </div>
       <p id="prevSubtitle" class="result-count">Calculando previsión…</p>
       <div class="table-toolbar">
         <button id="prevDownload" class="btn btn-primary">Descargar PDF</button>
