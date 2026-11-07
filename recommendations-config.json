@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-02",
+  "generated_at": "2026-11-09",
   "files": [
     {
       "name": "Agente_Highs_Nasdaq_Ronda3_2026-10-05",
@@ -25,6 +25,11 @@
       "name": "Agente_Highs_Nasdaq_Ronda7_2026-11-02",
       "id": "115XlHOPUZjfIMXP2Z9ePoiWmW7VV7z4S",
       "dataFile": "ronda7-data.json"
+    },
+    {
+      "name": "Agente_Highs_Nasdaq_Ronda8_2026-11-09",
+      "id": "1lIl7y2RYKYHljaD5AUchlhbqRmmTm647",
+      "dataFile": "ronda8-data.json"
     }
   ]
 }
