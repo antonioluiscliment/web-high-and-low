@@ -23,12 +23,21 @@
  * AUC medio 0,786.
  *
  * Los coeficientes se leen de prevision-coef.json (desplegado junto a index.html), que se
- * reajusta el día 1 de cada mes con todas las semanas acumuladas. Si ese fichero no se puede
- * leer, se usan los valores por defecto de abajo (ajuste del 2026-11-01).
+ * reajusta CADA SEMANA (desde el 2026-11-07) con todas las semanas acumuladas, dando más peso a
+ * las recientes (vida media de 2 semanas), para que cada acierto o fallo entre enseguida en el
+ * modelo. Si ese fichero no se puede leer, se usan los valores por defecto de abajo.
+ *
+ * Total previsto: se muestra con un rango orientativo, porque el número de Highs depende mucho
+ * del tono del mercado, que el modelo no ve.
+ *   - Valores ya registrados: suma de probabilidades × [rango_registrados.bajo, .alto]
+ *     (cociente real/previsto de la validación rodante, sin el mejor ni el peor caso).
+ *   - Incorporaciones nuevas: valor central = las de la última semana; rango = mínimo y máximo
+ *     de las últimas 4 semanas (primera aparición de cada fila de la hoja).
  */
 
-let COEF = { b: -2.0012, sem1: 1.9458, sem2: 0.1475, V: 0.1641, U: -0.3691, B: -0.1695 };
-let COEF_FECHA = "2026-11-01";
+let COEF = { b: -1.2693, sem1: 1.6621, sem2: 0.2436, V: -0.0337, U: -0.058, B: -0.1756 };
+let COEF_FECHA = "2026-11-07";
+let PREV_RANGE = { bajo: 0.94, alto: 1.57 };
 
 async function loadPrevisionCoef() {
   try {
@@ -40,6 +49,10 @@ async function loadPrevisionCoef() {
     if (c && keys.every(k => Number.isFinite(Number(c[k])))) {
       COEF = Object.fromEntries(keys.map(k => [k, Number(c[k])]));
       if (j.fecha_ajuste) COEF_FECHA = String(j.fecha_ajuste);
+    }
+    const rg = j && j.rango_registrados;
+    if (rg && Number.isFinite(Number(rg.bajo)) && Number.isFinite(Number(rg.alto)) && Number(rg.bajo) <= Number(rg.alto)) {
+      PREV_RANGE = { bajo: Number(rg.bajo), alto: Number(rg.alto) };
     }
   } catch (e) { /* se mantienen los coeficientes por defecto */ }
 }
@@ -88,6 +101,21 @@ function prevRecords(csvRows) {
   }).filter(Boolean);
 }
 
+// Incorporaciones nuevas por semana: nº de filas cuya primera marca está en esa columna de fecha.
+// Devuelve las de las últimas `n` semanas (la primera columna no cuenta: ahí todo es "nuevo").
+function prevNewEntriesHistory(csvRows, n = 4) {
+  const header = (csvRows[0] || []).map(h => String(h).trim());
+  const di = header.map((h, i) => /^\d{4}\/\d{2}\/\d{2}$/.test(h) ? i : -1).filter(i => i >= 0);
+  if (di.length < 2) return [];
+  const counts = di.map(() => 0);
+  csvRows.slice(1).forEach(r => {
+    if (!r || !String(r[0] || "").trim()) return;
+    const k = di.findIndex(i => String(r[i] || "").trim() !== "");
+    if (k >= 0) counts[k]++;
+  });
+  return counts.slice(1).slice(-n);
+}
+
 // La cabecera trae las fechas como "AAAA/MM/DD"; se toma la última y se suman 7 días.
 function prevWeekLabels(headerRow) {
   const dates = (headerRow || []).filter(h => /^\d{4}\/\d{2}\/\d{2}$/.test(String(h).trim()));
@@ -102,13 +130,26 @@ function prevWeekLabels(headerRow) {
 function prevPct(p) { return (p * 100).toFixed(1).replace(".", ",") + " %"; }
 function prevInt(x) { return Math.round(x).toLocaleString("es-ES"); }
 
-function prevSummaryText(s) {
-  const total = s.expectedRegistered + s.newLastWeek;
+function prevTotalRange(s) {
+  const hist = (s.newHistory && s.newHistory.length) ? s.newHistory : [s.newLastWeek];
+  const nMin = Math.min(...hist), nMax = Math.max(...hist);
   return {
-    main: `Total de Highs previstos en ${prevMarketLabel(s.sheet)}${s.nextWeekLabel ? " para la semana del " + s.nextWeekLabel : ""}: ≈ ${prevInt(total)}`,
-    detail: `${prevInt(s.expectedRegistered)} entre los ${s.rows.length} valores ya registrados en la hoja (suma de sus probabilidades) ` +
+    total: s.expectedRegistered + s.newLastWeek,
+    low: s.expectedRegistered * PREV_RANGE.bajo + nMin,
+    high: s.expectedRegistered * PREV_RANGE.alto + nMax,
+    nMin, nMax,
+  };
+}
+
+function prevSummaryText(s) {
+  const r = prevTotalRange(s);
+  return {
+    main: `Total de Highs previstos en ${prevMarketLabel(s.sheet)}${s.nextWeekLabel ? " para la semana del " + s.nextWeekLabel : ""}: ≈ ${prevInt(r.total)} (rango orientativo ${prevInt(r.low)} – ${prevInt(r.high)})`,
+    detail: `${prevInt(s.expectedRegistered)} entre los ${s.rows.length} valores ya registrados en la hoja (suma de sus probabilidades; ` +
+      `rango ${prevInt(s.expectedRegistered * PREV_RANGE.bajo)} – ${prevInt(s.expectedRegistered * PREV_RANGE.alto)}) ` +
       `+ ≈ ${s.newLastWeek} incorporaciones nuevas, que el modelo no puede anticipar y se estiman iguales a las de la última semana` +
-      `${s.lastWeekLabel ? " (" + s.lastWeekLabel + ")" : ""}. ` +
+      `${s.lastWeekLabel ? " (" + s.lastWeekLabel + ")" : ""} (rango ${r.nMin} – ${r.nMax}, mínimo y máximo de las últimas ${(s.newHistory || []).length || 1} semanas). ` +
+      `El total depende mucho del tono del mercado, que el modelo no ve: el rango es orientativo. ` +
       `Valores sin SPAC's, igual que la hoja. Modelo ajustado el ${COEF_FECHA}.`,
   };
 }
@@ -207,7 +248,8 @@ async function loadPrevision(sheetName) {
       });
       const csvRows = parseCsv(text);
       const labels = prevWeekLabels(csvRows[0]);
-      PREV_CACHE[name] = { sheet: name, ...computePrevision(prevRecords(csvRows)), nextWeekLabel: labels.next, lastWeekLabel: labels.last };
+      PREV_CACHE[name] = { sheet: name, ...computePrevision(prevRecords(csvRows)), newHistory: prevNewEntriesHistory(csvRows),
+        nextWeekLabel: labels.next, lastWeekLabel: labels.last };
     }
     PREV_STATE = PREV_CACHE[name];
   } catch (e) {
@@ -272,4 +314,4 @@ if (typeof document !== "undefined" && document.getElementById("view-prevision")
   setupPrevisionView();
 }
 
-if (typeof module !== "undefined") module.exports = { prevMarketLabel, prevRecords, computePrevision, prevProbability, prevWeekLabels };
+if (typeof module !== "undefined") module.exports = { prevNewEntriesHistory, prevTotalRange, prevSummaryText, prevMarketLabel, prevRecords, computePrevision, prevProbability, prevWeekLabels };
