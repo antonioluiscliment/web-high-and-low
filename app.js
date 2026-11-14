@@ -47,7 +47,23 @@ let currentSheet = null;
 let bounds = {};      // { field: {min, max} } for the current sheet
 let defaults = {};    // default (least restrictive) slider value per field
 let currentView = "highs-lows";
-let REC_FILES = [];   // [{name, id}] — informes "Agente..." de la carpeta PDF de BARRONS
+// Hoja central del proyecto "Agente Highs Nasdaq - Recomendaciones": 6 pestañas fijas que
+// se rotan cada semana (Ronda_Actual/Anterior/Antepenultima + Top25_Actual/Anterior/
+// Antepenultima), leídas en vivo por su "gid" fijo — no hace falta ningún manifiesto tipo
+// recommendations-config.json porque los nombres/gids de pestaña nunca cambian.
+const REC_SHEET_ID = "1bXT3cR3FgXGhSPGFdKoxSx8tqE9GJ-nkmvL3aSaguy4";
+const REC_ROUNDS = [
+  { key: "actual", label: "Ronda actual", rondaGid: 0, top25Gid: 1291149179 },
+  { key: "anterior", label: "Ronda anterior", rondaGid: 195747993, top25Gid: 382371312 },
+  { key: "antepenultima", label: "Ronda antepenúltima", rondaGid: 1688582377, top25Gid: 1948082671 },
+];
+const REC_TOP25_COLS = [
+  "rank", "ticker", "puntuacion", "valoracion", "situacion",
+  "spRating", "institutionalInvestors", "institutionalStake",
+  "dividendYears", "dividendYield", "per", "pbRatio",
+  "price", "high52w", "low52w",
+];
+let REC_DATA = {}; // caché en memoria: { [roundKey]: { top25: [...], roster: [...] } }
 let GRAFICOS_FILES = []; // [{name, id}] — capturas de TradingView de la carpeta GRAFICOS de BARRONS
 
 function $(id) { return document.getElementById(id); }
@@ -142,117 +158,119 @@ async function loadTickerNames() {
   }
 }
 
-// --- Vista "Recomendaciones": informes "Agente..." de la carpeta PDF de BARRONS en Drive ---
-// recommendations-config.json es un manifiesto (igual que sheets-config.json): lista los
-// ficheros "Agente..." de esa carpeta como {name, id}, porque una app estática sin backend
-// no puede listar el contenido de una carpeta de Drive en vivo. Hay que añadir una entrada
-// cada vez que se genere un informe nuevo. La carpeta PDF está compartida como "cualquiera
-// con el enlace, lector", así que estos ids se pueden incrustar sin iniciar sesión.
-async function loadRecommendations() {
-  try {
-    const config = await fetch("recommendations-config.json").then(r => (r.ok ? r.json() : null));
-    return (config && Array.isArray(config.files)) ? config.files : [];
-  } catch (e) {
-    return [];
-  }
-}
-
 function prettyReportName(name) {
   return String(name || "").replace(/_/g, " ");
 }
 
-// Nombre abreviado para el desplegable de informes: "Agente_Highs_Nasdaq_Ronda1_2026-09-21"
-// -> "Highs Nasdaq R1 09-21". Si el nombre no sigue ese patrón (informes antiguos o con otro
-// formato), se cae de vuelta al nombre completo de prettyReportName(). Esta función solo se usa
-// para el texto del desplegable; la descarga y el "compartir" siguen usando prettyReportName()
-// para el nombre del fichero.
-function abbreviateReportName(name) {
-  const m = String(name || "").match(/Agente[_\s]+Highs[_\s]+Nasdaq[_\s]+Ronda(\d+)[_\s]+(\d{4})-(\d{2})-(\d{2})/i);
-  if (m) {
-    const [, ronda, , mm, dd] = m;
-    return `Highs Nasdaq R${ronda} ${mm}-${dd}`;
-  }
-  return prettyReportName(name);
-}
-
-function driveEmbedUrl(id) { return `https://drive.google.com/file/d/${id}/preview`; }
 function driveDownloadUrl(id) { return `https://drive.google.com/uc?export=download&id=${id}`; }
 function driveImageUrl(id) { return `https://drive.google.com/thumbnail?id=${id}&sz=w1600`; }
 
-function showReport(id) {
-  if (!id) return;
-  $("recFrame").src = driveEmbedUrl(id);
-  $("recDownload").href = driveDownloadUrl(id);
-  $("recPanel").hidden = false;
+// --- Vista "Recomendaciones": datos en vivo desde la hoja REC_SHEET_ID --------------------
+// Misma técnica que loadData(): lectura pública vía el endpoint de Google Visualization en
+// CSV, sin necesidad de iniciar sesión ni de ningún manifiesto (los 6 "gid" de pestaña están
+// fijados arriba en REC_ROUNDS, porque no cambian nunca — solo cambia el contenido de cada
+// pestaña, una vez a la semana).
+function gvizCsvUrl(sheetId, gid) {
+  return `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`;
 }
 
-// --- Top 25 + datos fundamentales de la ronda seleccionada -----------------------------
-// Cada entrada de recommendations-config.json puede traer un "dataFile" opcional: el nombre
-// de un fichero JSON con el detalle de esa ronda, desplegado junto a index.html/app.js en el
-// propio repositorio de GitHub (ausente o null en informes antiguos, para los que todavía no
-// se ha preparado ese fichero — en ese caso las dos tablas de abajo se ocultan sin más). Se
-// lee con una ruta relativa (fetch(dataFile)), igual que sheets-config.json o
-// recommendations-config.json — IMPORTANTE: no se lee de Drive vía driveDownloadUrl(), porque
-// el endpoint de descarga de Drive no admite fetch() entre dominios (CORS) y la lectura falla
-// en silencio (detectado el 8/oct/2026 tras probarlo en la web real: ni la tabla de candidatas
-// ni la de datos fundamentales llegaban a mostrarse). Por eso dataFile tiene que ser un
-// fichero que Antonio arrastre a su repo de GitHub junto con el resto, no solo subido a Drive.
-// Formato esperado del fichero apuntado por dataFile:
-//   {
-//     "generated_at": "YYYY-MM-DD",
-//     "top25": [
-//       {
-//         "rank": 1, "ticker": "AAA", "puntuacion": 3.2, "valoracion": "Compra fuerte",
-//         "situacion": "Incorporación reciente",
-//         "spRating": "n/s", "institutionalInvestors": "n/s", "institutionalStake": "n/s",
-//         "dividendYears": "n/s", "dividendYield": "n/s", "per": "n/s", "pbRatio": "n/s",
-//         "price": "n/s", "high52w": "n/s", "low52w": "n/s"
-//       },
-//       ... hasta 25 entradas
-//     ]
-//   }
-// Los 9 campos de datos fundamentales (todos salvo el rating de S&P, que viene de la web de
-// S&P) se buscan en Yahoo Finance; cuando no se encuentra un dato se deja el texto "n/s"
-// (no disponible por ahora) en vez de dejarlo en blanco o inventar un valor.
-async function loadTop25Data(dataFile) {
-  if (!dataFile) return null;
-  try {
-    const resp = await fetch(dataFile);
-    if (!resp.ok) return null;
-    const json = await resp.json();
-    return (json && Array.isArray(json.top25)) ? json.top25 : null;
-  } catch (e) {
-    return null;
-  }
+// Convierte una celda de texto ya formateada ("3,3864", "7.37%", "n/s", "Fuerte Compra"...)
+// a número cuando tiene pinta de serlo. Admite coma o punto como separador decimal: el
+// formato exacto que devuelve el export CSV de Google para una hoja en español no se puede
+// comprobar desde este entorno (red restringida), así que se admiten ambos a propósito en
+// vez de asumir uno solo. Devuelve null si no es un número (texto, vacío o "n/s").
+function parseRecNumber(raw) {
+  if (raw === null || raw === undefined) return null;
+  const str = String(raw).trim();
+  if (str === "" || str.toLowerCase() === "n/s") return null;
+  let norm = str.replace(/[^0-9,.\-]/g, "");
+  if (norm.includes(",") && !norm.includes(".")) norm = norm.replace(",", ".");
+  const n = Number(norm);
+  return Number.isFinite(n) ? n : null;
 }
 
-function renderTop25Tables(entries) {
+// Para las tablas de Recomendaciones: casi todas las celdas son texto ya listo para mostrar
+// tal cual (valoración, situación, "n/s", porcentajes...), así que por defecto se muestran
+// sin tocar. Solo cuando se pide un número de decimales (la puntuación) se reformatea vía
+// parseRecNumber(), para no depender del separador decimal con que haya exportado Google
+// ese valor.
+function recFmt(raw, decimals) {
+  if (raw === null || raw === undefined) return "n/s";
+  const str = String(raw).trim();
+  if (str === "") return "n/s";
+  if (decimals === undefined) return str;
+  const n = parseRecNumber(str);
+  return n === null ? str : n.toFixed(decimals);
+}
+
+async function fetchRecSheet(gid) {
+  const text = await fetch(gvizCsvUrl(REC_SHEET_ID, gid)).then(r => {
+    if (!r.ok) throw new Error(`No se pudo leer la hoja de recomendaciones (HTTP ${r.status})`);
+    return r.text();
+  });
+  return parseCsv(text).slice(1); // se descarta la cabecera
+}
+
+// Carga a la vez las dos pestañas de una ronda (Top25_* y Ronda_*). Top25_* trae las 15
+// columnas fijas de REC_TOP25_COLS, siempre en ese orden (lo garantiza el proceso semanal
+// que rellena la hoja). Ronda_* es más simple: solo ticker + situación, para el listado
+// completo de candidatas de esa ronda (no lleva puntuación ni valoración).
+async function loadRecRound(round) {
+  const [top25Rows, rosterRows] = await Promise.all([
+    fetchRecSheet(round.top25Gid),
+    fetchRecSheet(round.rondaGid),
+  ]);
+  const top25 = top25Rows
+    .filter(r => r.length >= REC_TOP25_COLS.length && r[1])
+    .map(r => {
+      const entry = {};
+      REC_TOP25_COLS.forEach((key, i) => { entry[key] = r[i]; });
+      return entry;
+    });
+  const roster = rosterRows
+    .filter(r => r.length >= 2 && r[0])
+    .map(r => ({ ticker: r[0], situacion: r[1] }));
+  return { top25, roster };
+}
+
+// Caché en memoria por ronda (REC_DATA): cada pestaña solo se lee una vez por carga de
+// página aunque el usuario cambie de ronda varias veces en el desplegable.
+async function ensureRecRound(roundKey) {
+  if (REC_DATA[roundKey]) return REC_DATA[roundKey];
+  const round = REC_ROUNDS.find(r => r.key === roundKey);
+  if (!round) return { top25: [], roster: [] };
+  const data = await loadRecRound(round);
+  REC_DATA[roundKey] = data;
+  return data;
+}
+
+function renderTop25Tables(data) {
   const top25Panel = $("recTop25Panel");
   const fundPanel = $("recFundamentalesPanel");
   const top25Body = $("recTop25Body");
   const fundBody = $("recFundamentalesBody");
   if (!top25Panel || !fundPanel || !top25Body || !fundBody) return;
 
-  if (!entries || entries.length === 0) {
+  const entries = (data && data.top25) || [];
+  top25Body.innerHTML = "";
+  fundBody.innerHTML = "";
+
+  if (entries.length === 0) {
     top25Panel.hidden = true;
     fundPanel.hidden = true;
-    top25Body.innerHTML = "";
-    fundBody.innerHTML = "";
     return;
   }
 
-  top25Body.innerHTML = "";
-  fundBody.innerHTML = "";
   entries.slice(0, 25).forEach(e => {
-    const ticker = e.ticker ?? "";
+    const ticker = e.ticker || "";
 
     const tr1 = document.createElement("tr");
     tr1.innerHTML = `
-      <td class="col-num">${e.rank ?? ""}</td>
+      <td class="col-num">${recFmt(e.rank)}</td>
       <td class="col-ticker" data-ticker="${ticker}">${ticker || "—"}</td>
-      <td>${fmt(e.puntuacion, 2)}</td>
-      <td>${e.valoracion ?? "—"}</td>
-      <td>${e.situacion ?? "—"}</td>
+      <td>${recFmt(e.puntuacion, 2)}</td>
+      <td>${recFmt(e.valoracion)}</td>
+      <td>${recFmt(e.situacion)}</td>
     `;
     bindPressHint(tr1.querySelector(".col-ticker"), () => tickerHintText(ticker));
     top25Body.appendChild(tr1);
@@ -260,16 +278,16 @@ function renderTop25Tables(entries) {
     const tr2 = document.createElement("tr");
     tr2.innerHTML = `
       <td class="col-ticker" data-ticker="${ticker}">${ticker || "—"}</td>
-      <td>${e.spRating ?? "n/s"}</td>
-      <td>${e.institutionalInvestors ?? "n/s"}</td>
-      <td>${e.institutionalStake ?? "n/s"}</td>
-      <td>${e.dividendYears ?? "n/s"}</td>
-      <td>${e.dividendYield ?? "n/s"}</td>
-      <td>${e.per ?? "n/s"}</td>
-      <td>${e.pbRatio ?? "n/s"}</td>
-      <td>${e.price ?? "n/s"}</td>
-      <td>${e.high52w ?? "n/s"}</td>
-      <td>${e.low52w ?? "n/s"}</td>
+      <td>${recFmt(e.spRating)}</td>
+      <td>${recFmt(e.institutionalInvestors)}</td>
+      <td>${recFmt(e.institutionalStake)}</td>
+      <td>${recFmt(e.dividendYears)}</td>
+      <td>${recFmt(e.dividendYield)}</td>
+      <td>${recFmt(e.per)}</td>
+      <td>${recFmt(e.pbRatio)}</td>
+      <td>${recFmt(e.price)}</td>
+      <td>${recFmt(e.high52w)}</td>
+      <td>${recFmt(e.low52w)}</td>
     `;
     bindPressHint(tr2.querySelector(".col-ticker"), () => tickerHintText(ticker));
     fundBody.appendChild(tr2);
@@ -279,23 +297,52 @@ function renderTop25Tables(entries) {
   fundPanel.hidden = false;
 }
 
-// Cuando la ronda seleccionada ya tiene datos preparados (Top 25 + fundamentales), el PDF
-// embebido deja de aportar nada que esas dos tablas no muestren ya, así que se oculta el
-// visor (el iframe) para no duplicar la información — pero se deja el resto del panel
-// (botones "Descargar PDF" y "Compartir") siempre visible, porque el PDF en sí sigue
-// teniendo contenido que las tablas no recogen (el cuaderno, el comentario de evolución,
-// etc.). Para rondas sin datos preparados (dataFile ausente, o el fetch falla) el iframe
-// sigue siendo la única forma de ver el informe, así que se muestra como antes.
-function setPdfFrameVisible(visible) {
-  const wrap = $("recFrameWrap");
-  if (wrap) wrap.hidden = !visible;
+// Tabla opcional con el listado completo de la ronda (ticker + situación, sin puntuación:
+// la hoja Ronda_* no la lleva). Solo se rellena si index.html incluye los elementos
+// recRosterPanel/recRosterBody — si no existen (todavía no añadidos a index.html), esta
+// función no hace nada, así que no hace falta tocar el HTML para que el resto funcione.
+function renderRoster(data) {
+  const panel = $("recRosterPanel");
+  const body = $("recRosterBody");
+  if (!panel || !body) return;
+
+  const rows = (data && data.roster) || [];
+  body.innerHTML = "";
+  if (rows.length === 0) {
+    panel.hidden = true;
+    return;
+  }
+  rows.forEach((r, i) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="col-num">${i + 1}</td>
+      <td class="col-ticker" data-ticker="${r.ticker}">${r.ticker || "—"}</td>
+      <td>${recFmt(r.situacion)}</td>
+    `;
+    bindPressHint(tr.querySelector(".col-ticker"), () => tickerHintText(r.ticker));
+    body.appendChild(tr);
+  });
+  panel.hidden = false;
 }
 
-async function updateTop25ForSelected(id) {
-  const selected = REC_FILES.find(f => f.id === id);
-  const entries = await loadTop25Data(selected && selected.dataFile);
-  renderTop25Tables(entries);
-  setPdfFrameVisible(!entries || entries.length === 0);
+async function loadAndRenderRecRound(roundKey) {
+  const empty = $("recEmpty");
+  const panel = $("recPanel");
+  try {
+    const data = await ensureRecRound(roundKey);
+    if (empty) empty.hidden = true;
+    if (panel) panel.hidden = false;
+    renderTop25Tables(data);
+    renderRoster(data);
+  } catch (e) {
+    renderTop25Tables(null);
+    renderRoster(null);
+    if (panel) panel.hidden = true;
+    if (empty) {
+      empty.hidden = false;
+      empty.textContent = "No se han podido cargar los datos de recomendaciones.";
+    }
+  }
 }
 
 // --- Vista "Gráficos de TradingView recomendados": capturas de la carpeta GRAFICOS de
@@ -322,39 +369,30 @@ function showGrafico(id) {
   $("graficoPanel").hidden = false;
 }
 
-function setupRecommendationsView(files, applyFromParams) {
-  REC_FILES = files || [];
+function setupRecommendationsView(applyFromParams) {
   const sel = $("recSelect");
-  const empty = $("recEmpty");
-  const panel = $("recPanel");
+  // El visor de PDF embebido ya no se usa (los datos se leen en vivo de la hoja): se oculta
+  // de forma permanente, sin tocar el HTML.
+  const frameWrap = $("recFrameWrap");
+  if (frameWrap) frameWrap.hidden = true;
+  if (!sel) return;
+
   sel.innerHTML = "";
-
-  if (REC_FILES.length === 0) {
-    empty.hidden = false;
-    panel.hidden = true;
-    sel.hidden = true;
-    return;
-  }
-  empty.hidden = true;
-  sel.hidden = false;
-
-  REC_FILES.forEach(f => {
+  REC_ROUNDS.forEach(r => {
     const opt = document.createElement("option");
-    opt.value = f.id;
-    opt.textContent = abbreviateReportName(f.name);
+    opt.value = r.key;
+    opt.textContent = r.label;
     sel.appendChild(opt);
   });
 
-  // Por defecto se selecciona el último informe (la ronda más reciente), no el primero.
-  let selectedId = REC_FILES[REC_FILES.length - 1].id;
+  let selectedKey = REC_ROUNDS[0].key; // "actual" por defecto
   if (applyFromParams) {
     const p = new URLSearchParams(location.search);
-    const raw = p.get("report");
-    if (raw && REC_FILES.some(f => f.id === raw)) selectedId = raw;
+    const raw = p.get("round");
+    if (raw && REC_ROUNDS.some(r => r.key === raw)) selectedKey = raw;
   }
-  sel.value = selectedId;
-  showReport(selectedId);
-  updateTop25ForSelected(selectedId);
+  sel.value = selectedKey;
+  loadAndRenderRecRound(selectedKey);
 }
 
 function setupGraficosView(files, applyFromParams) {
@@ -525,7 +563,7 @@ function updateUrl() {
   p.set("view", currentView);
   if (currentView === "recomendaciones") {
     const sel = $("recSelect");
-    if (sel && sel.value) p.set("report", sel.value);
+    if (sel && sel.value) p.set("round", sel.value);
   } else if (currentView === "graficos") {
     const sel = $("graficoSelect");
     if (sel && sel.value) p.set("grafico", sel.value);
@@ -623,31 +661,75 @@ async function shareHighsLowsPdf() {
   });
 }
 
-async function shareRecommendationPdf() {
-  const selected = REC_FILES.find(f => f.id === $("recSelect").value);
-  if (!selected) return;
-  const filename = `${prettyReportName(selected.name)}.pdf`;
-  const fallbackDownload = () => { window.location.href = driveDownloadUrl(selected.id); };
-  try {
-    const resp = await fetch(driveDownloadUrl(selected.id));
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const blob = await resp.blob();
-    const file = new File([blob], filename, { type: "application/pdf" });
-    await sharePdfFile(file, {
-      title: "Análisis de Highs and Lows",
-      text: `Recomendaciones — ${prettyReportName(selected.name)}`,
-      fallbackDownload,
-    });
-  } catch (e) {
-    // Fetch bloqueado (CORS, red) o fallo al leer el PDF: igual que arriba, preferimos
-    // descargar el PDF real antes que compartir un simple enlace.
-    fallbackDownload();
-    showToast("Tu navegador no permite compartir el PDF directamente: se ha descargado para que lo compartas tú.");
-  }
+// Construye el PDF de la vista "Recomendaciones" (Top 25 + datos fundamentales de la ronda
+// seleccionada) con jsPDF + jspdf-autotable — mismo patrón que buildHighsLowsPdfDoc(), pero
+// con dos páginas (candidatas y fundamentales) porque no caben cómodamente en una sola tabla.
+function buildRecPdfDoc(roundKey) {
+  const round = REC_ROUNDS.find(r => r.key === roundKey) || REC_ROUNDS[0];
+  const data = REC_DATA[roundKey] || { top25: [] };
+  const entries = data.top25 || [];
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+  const fecha = new Date().toLocaleDateString("es-ES");
+
+  doc.setFontSize(14);
+  doc.text("Agente Highs Nasdaq — Recomendaciones (Top 25)", 40, 36);
+  doc.setFontSize(10);
+  doc.text(`${round.label}  ·  ${fecha}`, 40, 54);
+  doc.autoTable({
+    head: [["#", "Ticker", "Puntuación", "Valoración", "Situación"]],
+    body: entries.map(e => [
+      recFmt(e.rank), e.ticker || "", recFmt(e.puntuacion, 2), recFmt(e.valoracion), recFmt(e.situacion),
+    ]),
+    startY: 66,
+    styles: { fontSize: 8, cellPadding: 3 },
+    headStyles: { fillColor: [15, 31, 56] },
+    margin: { left: 40, right: 40 },
+  });
+
+  doc.addPage("a4", "landscape");
+  doc.setFontSize(14);
+  doc.text("Agente Highs Nasdaq — Datos fundamentales (Top 25)", 40, 36);
+  doc.setFontSize(10);
+  doc.text(`${round.label}  ·  ${fecha}`, 40, 54);
+  doc.autoTable({
+    head: [["Ticker", "S&P", "Inv. inst.", "% inst.", "Años div.", "Yield div.", "PER", "P/B", "Precio", "Máx 52s", "Mín 52s"]],
+    body: entries.map(e => [
+      e.ticker || "", recFmt(e.spRating), recFmt(e.institutionalInvestors), recFmt(e.institutionalStake),
+      recFmt(e.dividendYears), recFmt(e.dividendYield), recFmt(e.per), recFmt(e.pbRatio),
+      recFmt(e.price), recFmt(e.high52w), recFmt(e.low52w),
+    ]),
+    startY: 66,
+    styles: { fontSize: 7, cellPadding: 3 },
+    headStyles: { fillColor: [15, 31, 56] },
+    margin: { left: 40, right: 40 },
+  });
+
+  const filename = `recomendaciones-${roundKey}.pdf`;
+  return { doc, filename };
+}
+
+function downloadRecPdf() {
+  const roundKey = $("recSelect").value;
+  const { doc, filename } = buildRecPdfDoc(roundKey);
+  doc.save(filename);
+}
+
+async function shareRecommendation() {
+  const roundKey = $("recSelect").value;
+  const round = REC_ROUNDS.find(r => r.key === roundKey) || REC_ROUNDS[0];
+  const { doc, filename } = buildRecPdfDoc(roundKey);
+  const blob = doc.output("blob");
+  const file = new File([blob], filename, { type: "application/pdf" });
+  await sharePdfFile(file, {
+    title: "Agente Highs Nasdaq — Recomendaciones",
+    text: `Recomendaciones — ${round.label}`,
+    fallbackDownload: () => doc.save(filename),
+  });
 }
 
 // Comparte la imagen (captura de TradingView) seleccionada, no un enlace — mismo patrón que
-// shareRecommendationPdf(): se descarga el fichero real de Drive, se envuelve en un File y se
+// shareRecommendation(): se descarga el fichero real de Drive, se envuelve en un File y se
 // comparte vía sharePdfFile() (el nombre viene de cuando solo se usaba para PDFs, pero funciona
 // igual para cualquier tipo de fichero).
 async function shareGraficoImage() {
@@ -714,7 +796,7 @@ function setupHeaderHints() {
   });
 }
 
-function init(recFiles, graficosFiles) {
+function init(graficosFiles) {
   setupMenu();
   setupHeaderHints();
 
@@ -761,13 +843,16 @@ function init(recFiles, graficosFiles) {
   $("downloadPdf").addEventListener("click", downloadPdf);
   $("shareView").addEventListener("click", shareHighsLowsPdf);
 
-  setupRecommendationsView(recFiles, true);
+  setupRecommendationsView(true);
   $("recSelect").addEventListener("change", () => {
-    showReport($("recSelect").value);
-    updateTop25ForSelected($("recSelect").value);
+    loadAndRenderRecRound($("recSelect").value);
     updateUrl();
   });
-  $("recShare").addEventListener("click", shareRecommendationPdf);
+  const recDownloadBtn = $("recDownload");
+  if (recDownloadBtn) {
+    recDownloadBtn.addEventListener("click", (e) => { e.preventDefault(); downloadRecPdf(); });
+  }
+  $("recShare").addEventListener("click", shareRecommendation);
 
   setupGraficosView(graficosFiles, true);
   $("graficoSelect").addEventListener("change", () => {
@@ -783,8 +868,8 @@ function init(recFiles, graficosFiles) {
   switchView(requestedView);
 }
 
-Promise.all([loadData(), loadTickerNames(), loadRecommendations(), loadGraficos()])
-  .then(([json, names, recFiles, graficosFiles]) => { DATA = json; TICKER_NAMES = names; init(recFiles, graficosFiles); })
+Promise.all([loadData(), loadTickerNames(), loadGraficos()])
+  .then(([json, names, graficosFiles]) => { DATA = json; TICKER_NAMES = names; init(graficosFiles); })
   .catch(err => {
     document.body.innerHTML = `<p style="padding:40px;font-family:sans-serif;color:#b00">
       No se pudieron cargar los datos (sheets-config.json o alguna Google Sheet). ${err}</p>`;
