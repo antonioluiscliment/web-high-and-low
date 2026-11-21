@@ -1,21 +1,21 @@
 {
-  "fecha_ajuste": "2026-11-07",
-  "datos_hasta": "2026/11/09",
-  "semanas_objetivo": "2026/09/07 - 2026/11/09",
-  "observaciones": 3240,
+  "fecha_ajuste": "2026-11-15",
+  "datos_hasta": "2026/11/16",
+  "semanas_objetivo": "2026/09/07 - 2026/11/16",
+  "observaciones": 3694,
   "ponderacion": "vida media 2 semanas (cada semana pesa ~0,71 de la siguiente)",
-  "auc_validacion_rodante": 0.779,
+  "auc_validacion_rodante": 0.772,
   "coef": {
-    "b": -1.2693,
-    "sem1": 1.6621,
-    "sem2": 0.2436,
-    "V": -0.0337,
-    "U": -0.058,
-    "B": -0.1756
+    "b": -1.6764,
+    "sem1": 1.5416,
+    "sem2": 0.1572,
+    "V": 0.0236,
+    "U": -0.0508,
+    "B": -0.1165
   },
   "rango_registrados": {
-    "bajo": 0.94,
-    "alto": 1.57,
-    "nota": "real/previsto en la validación rodante desde 2026/09/28, excluyendo el mejor y el peor caso"
+    "bajo": 0.66,
+    "alto": 1.58,
+    "nota": "real/previsto en la validación rodante desde la 6ª semana, excluyendo el mejor y el peor caso"
   }
 }
